@@ -1,0 +1,8 @@
+James S. Crook
+Wed Mar  9 21:39:10 AEDT 2016
+
+For Linux and Cygwin
+    gcc -o findfiles findfiles.c
+
+For AIX:
+    gcc -D _LARGE_FILES -o findfiles findfiles.c
