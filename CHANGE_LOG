@@ -1,0 +1,23 @@
+v0.0.1	- Initial FOSS version
+
+
+
+
+v0.0.2 Changes that are _NOT_ backward compatibile:
+
+1.  The meaning of "-" (minus sign vs plus sign or equivalently, no minus sign) is reversed
+    when specifying an age value with the "-A" and "-M" options. (So now "-" means the same
+    as it does for "-a" and "-m".)
+
+2. "Y" Year(s) and "M" Month(s) are calculated correctly (not 365D and 30D, as they were before)
+
+3. Daylight Savings time is handled correctly (if one can say such a thing for discontinuous time!).
+
+
+v0.0.2 Changes that are backward compatibile:
+
+1.  --long_options now require only the minumum number of characters to be unique (like getopt_long).
+
+2.  process_object now uses timestamp (Epoch) times, not ages.
+
+3.  Cosmetic changes such as better indenting and renaming varibles and functions.
