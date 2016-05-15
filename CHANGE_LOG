@@ -1,9 +1,10 @@
+=============================================================================================
 v0.0.1	- Initial FOSS version
 
+=============================================================================================
+v0.0.2
 
-
-
-v0.0.2 Changes that are _NOT_ backward compatibile:
+Changes that are _NOT_ backward compatibile:
 
 1.  The meaning of "-" (minus sign vs plus sign or equivalently, no minus sign) is reversed
     when specifying an age value with the "-A" and "-M" options. (So now "-" means the same
@@ -13,11 +14,18 @@ v0.0.2 Changes that are _NOT_ backward compatibile:
 
 3. Daylight Savings time is handled correctly (if one can say such a thing for discontinuous time!).
 
-
-v0.0.2 Changes that are backward compatibile:
+Changes that ARE backward compatibile:
 
 1.  --long_options now require only the minumum number of characters to be unique (like getopt_long).
 
 2.  process_object now uses timestamp (Epoch) times, not ages.
 
 3.  Cosmetic changes such as better indenting and renaming varibles and functions.
+
+=============================================================================================
+v0.0.3 Sun May 15 21:30:33 AEST 2016
+
+1. Added variables to compare_object_info & a cast to qsort to get a clean compile with this:
+   gcc -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+
+2. Updated and standardized the usage message (foo, not <foo>), fixed a spelling mistake

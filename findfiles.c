@@ -62,7 +62,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"0.0.2"
+#define PROGRAMVERSIONSTRING	"0.0.3"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,25 +102,25 @@ last access and/or last modification times are both rare and uninteresting.
 #define GETOPTSTR		"+dforia:m:p:A:M:hsuvRt:"
 #define USAGEMESSAGE \
 "usage (v %s):\n\
-%s [OPTION ...] <target>|-t <target> ... [OPTION ...] <target>|-t <target> ...\n\
+%s [OPTION...] target|-t target... [OPTION...] target|-t target...\n\
  Where: OPTIONs are:\n\
-  <age>    is a +/- relative age value (integer or float) followed by a time unit\n\
-  <path>   is the pathname of a refrenece object (file, directory, etc.)\n\
-  <ERE>    is a POSIX-style Extended Regular Expression (pattern)\n\
-  <target> is the pathname of an object (file, directory, etc.) to search\n\
- Options - can be toggled on/off (parsed left to right):\n\
+  age  is a +/- relative age value followed by a time unit\n\
+  path is the pathname of a reference object (file, directory, etc.)\n\
+  ERE  is a POSIX-style Extended Regular Expression (pattern)\n\
+  target is the pathname of an object (file, directory, etc.) to search\n\
+ OPTIONs - can be toggled on/off (parsed left to right):\n\
   -d|--directories : directories   (default off)\n\
   -f|--files       : regular files (default off)\n\
   -o|--others      : other files   (default off)\n\
   -r|--recursive   : recursive - traverse file trees (default off)\n\
   -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n\
- Options requiring parameters (parsed left to right):\n\
-  -a|--acc-age [-|+]<access_age>       : - for newer/=, [+] for older/= ages (no default)\n\
-  -m|--mod-age [-|+]<modification_age> : - for newer/=, [+] for older/= ages (default 0s: any time)\n\
-  -p|--pattern <ERE>                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n\
-  -A|--acc-ref [-|+]<acc_ref_path>     : - for newer, [+] for older ages (no default)\n\
-  -M|--mod-ref [-|+]<mod_ref_path>     : - for newer, [+] for older ages (no default)\n\
-  -t|--target <target_path>            : target path (no default)\n\
+ OPTIONs requiring parameters (parsed left to right):\n\
+  -a|--acc-age [-|+]access_age       : - for newer/=, [+] for older/= ages (no default)\n\
+  -m|--mod-age [-|+]modification_age : - for newer/=, [+] for older/= ages (default 0s: any time)\n\
+  -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n\
+  -A|--acc-ref [-|+]acc_ref_path     : - for newer, [+] for older ages (no default)\n\
+  -M|--mod-ref [-|+]mod_ref_path     : - for newer, [+] for older ages (no default)\n\
+  -t|--target target_path            : target path (no default)\n\
  Flags - are 'global' options (can NOT be toggled by setting multiple times):\n\
   -h|--help    : display this help message\n\
   -s|--seconds : display file ages in seconds (default D_hh:mm:ss)\n\
@@ -130,7 +130,7 @@ last access and/or last modification times are both rare and uninteresting.
  Time units:\n\
   Y: Years    M: Months     W: Weeks      D: Days\n\
   h: hours    m: minutes    s: seconds\n\
-  Note: Specify Y, M and s with integer values.\n\
+  Note: Specify Y, M & s with integer values. W, D, h & m can also take floating point values.\n\
  Examples of command line arguments (parsed left to right):\n\
   -f /tmp                      # files in /tmp of any age, including future dates!\n\
   -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n\
@@ -340,11 +340,14 @@ void process_directory(char *pathname, regex_t *extregexpptr, time_t targettime)
 /*******************************************************************************
 Comparison function for the qsort call (of objectinfotable) in function list_objects.
 *******************************************************************************/
-int compare_object_info(Objectinfo *firstptr, Objectinfo *secondptr) {
-    if (firstptr->age != secondptr->age) {
-	return (firstptr->age - secondptr->age)*sortmultiplier;
+int compare_object_info(const void *firstptr, const void *secondptr) {
+    const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
+    const Objectinfo	*secondobjinfoptr = secondptr;
+
+    if (firstobjinfoptr->age != secondobjinfoptr->age) {
+	return (firstobjinfoptr->age - secondobjinfoptr->age)*sortmultiplier;
     } else {
-	return (strcmp(firstptr->name, secondptr->name))*sortmultiplier;
+	return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
     }
 }
 
@@ -358,7 +361,7 @@ void list_objects() {
     int		 foundidx;
     char	 objectagestr[MAXOBJAGESTRLEN], *chptr;
 
-    qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), (void *)compare_object_info);
+    qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_info);
     for (foundidx=0; foundidx<numobjsfound; foundidx++) {
 	if (verbosity > 0) {
 
