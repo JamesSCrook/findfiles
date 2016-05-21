@@ -1,11 +1,13 @@
+Sat May 21 16:39:18 AEST 2016
 James S. Crook
-Mon May 16 09:51:17 AEST 2016
+
+For further information on findfiles: https://yosj.com.au/Staff/C_Programs/findfiles/findfiles.html
 
 For Linux and Cygwin
     gcc -o findfiles findfiles.c
 
     This should also clean compile on Linux:
-    gcc -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+    gcc -O2 -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
 
 For AIX:
     gcc -maix64 -o findfiles findfiles.c
