@@ -2,7 +2,7 @@
 ********************************************************************************
 
     findfiles: find files based on various selection criteria
-    Copyright (C) 2016 James S. Crook
+    Copyright (C) 2016-2017 James S. Crook
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -62,7 +62,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"0.0.3"
+#define PROGRAMVERSIONSTRING	"1.0.0"		/* 2017/04/07 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,20 +101,20 @@ last access and/or last modification times are both rare and uninteresting.
 
 #define GETOPTSTR		"+dforia:m:p:A:M:hsuvRt:"
 #define USAGEMESSAGE \
-"usage (v %s):\n\
-%s [OPTION...] target|-t target... [OPTION...] target|-t target...\n\
- Where: OPTIONs are:\n\
-  age  is a +/- relative age value followed by a time unit\n\
-  path is the pathname of a reference object (file, directory, etc.)\n\
-  ERE  is a POSIX-style Extended Regular Expression (pattern)\n\
-  target is the pathname of an object (file, directory, etc.) to search\n\
+"usage (version %s):\n\
+%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n\
+ Some OPTIONs require arguments. These are:\n\
+  age    : a +/- relative age value followed by a time unit\n\
+  ERE    : a POSIX-style Extended Regular Expression (pattern)\n\
+  path   : the pathname of a reference object (file, directory, etc.)\n\
+  target : the pathname of an object (file, directory, etc.) to search\n\
  OPTIONs - can be toggled on/off (parsed left to right):\n\
   -d|--directories : directories   (default off)\n\
   -f|--files       : regular files (default off)\n\
   -o|--others      : other files   (default off)\n\
   -r|--recursive   : recursive - traverse file trees (default off)\n\
   -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n\
- OPTIONs requiring parameters (parsed left to right):\n\
+ OPTIONs requiring an argument (parsed left to right):\n\
   -a|--acc-age [-|+]access_age       : - for newer/=, [+] for older/= ages (no default)\n\
   -m|--mod-age [-|+]modification_age : - for newer/=, [+] for older/= ages (default 0s: any time)\n\
   -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n\
@@ -125,8 +125,9 @@ last access and/or last modification times are both rare and uninteresting.
   -h|--help    : display this help message\n\
   -s|--seconds : display file ages in seconds (default D_hh:mm:ss)\n\
   -u|--units   : display units: s for seconds, B for Bytes (default off)\n\
-  -v|--verbose : verbose output - modification times(s) & sizes(B) (default off)\n\
   -R|--reverse : Reverse the (time) order of the output (default off)\n\
+ Verbosity: (May be specified more than once for additional information.)\n\
+  -v|--verbosity : also display modification time, age & size(B) (default 0[off])\n\
  Time units:\n\
   Y: Years    M: Months     W: Weeks      D: Days\n\
   h: hours    m: minutes    s: seconds\n\
@@ -141,7 +142,7 @@ last access and/or last modification times are both rare and uninteresting.
   -fvm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but\n\
                                # NOT files) in /var accessed >= 1h, verbose output\n\
 \n\
-findfiles Copyright (C) 2016 James S. Crook\n\
+findfiles Copyright (C) 2016-2017 James S. Crook\n\
 This program comes with ABSOLUTELY NO WARRANTY.\n\
 This is free software, and you are welcome to redistribute it under certain conditions.\n\
 This program is licensed under the terms of the GNU General Public License as published\n\
@@ -160,6 +161,7 @@ time_t		starttime;
 
 int	maxnumberobjects	= INITMAXNUMOBJS;
 int	numobjsfound		= 0;
+int	numtargets		= 0;
 int	returncode		= 0;
 
 /* Command line option flags - all set to false */
@@ -314,6 +316,13 @@ void process_directory(char *pathname, regex_t *extregexpptr, time_t targettime)
     DIR		  *dirptr;
     struct dirent *direntptr;
     char	   newpathname[MAXPATHLENGTH];
+    char	   dirpath[MAXPATHLENGTH];
+
+    if (strcmp(pathname, "/")) {
+	sprintf(dirpath, "%s%c", pathname, PATHDELIMITERCHAR);  /* not "/" */
+    } else {
+	sprintf(dirpath, "%c", PATHDELIMITERCHAR);	    /* pathname is "/" */
+    }
 
     if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
 	fprintf(stderr, "opendir error");
@@ -325,7 +334,7 @@ void process_directory(char *pathname, regex_t *extregexpptr, time_t targettime)
     while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
 	if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
 	    /* create newpathname from pathname/objectname */
-	    sprintf(newpathname, "%s%c%s", pathname, PATHDELIMITERCHAR, direntptr->d_name);
+	    sprintf(newpathname, "%s%s", dirpath, direntptr->d_name);
 	    process_path(newpathname, extregexpptr, targettime, 0);
 	}
     }
@@ -396,6 +405,10 @@ void list_objects() {
 	}
 	printf("%s\n", objectinfotable[foundidx].name);
     }
+
+    if (numtargets == 0 && verbosity > 1) {
+	fprintf(stderr, "Warning: no targets were specified on the command line!\n");
+    }
 }
 
 
@@ -410,7 +423,7 @@ void check_integer(char *targetagestr) {
 
     for (chptr=targetagestr; chptr<targetagestr+strlen(targetagestr)-1; chptr++) {
 	if (!isdigit(*chptr) && *chptr != '-' && *chptr != '+' ) {
-	    fprintf(stderr, "Warning: non-integer character '%c' in '%s'!!!\n",
+	    fprintf(stderr, "Warning: non-integer character '%c' in '%s'!\n",
 							    *chptr, targetagestr);
 	}
     }
@@ -690,11 +703,16 @@ int main(int argc, char *argv[]) {
 			  bytesunitchar   = BYTESUNITCHAR;			break;
 		case 'v': verbosity++;						break;
 		case 'R': sortmultiplier  = -1;					break;
-		case 't': process_path(optarg, &extregexp, targettime, 1);	break;
+		case 't': process_path(optarg, &extregexp, targettime, 1);
+		    numtargets++;						break;
+		break;
 	    }
 	}
+
+
 	if (optind < argc) {	/* See above comment. Yes, this is required! */
 	    process_path(argv[optind], &extregexp, targettime, 1);
+	    numtargets++;
 	    optind++;
 	}
     }
