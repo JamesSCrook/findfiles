@@ -62,7 +62,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"1.0.0"		/* 2017/04/07 */
+#define PROGRAMVERSIONSTRING	"1.0.1"		/* 2017/04/21 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,7 +127,7 @@ last access and/or last modification times are both rare and uninteresting.
   -u|--units   : display units: s for seconds, B for Bytes (default off)\n\
   -R|--reverse : Reverse the (time) order of the output (default off)\n\
  Verbosity: (May be specified more than once for additional information.)\n\
-  -v|--verbosity : also display modification time, age & size(B) (default 0[off])\n\
+  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n\
  Time units:\n\
   Y: Years    M: Months     W: Weeks      D: Days\n\
   h: hours    m: minutes    s: seconds\n\
