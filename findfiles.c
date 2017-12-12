@@ -62,7 +62,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"1.0.1"		/* 2017/04/21 */
+#define PROGRAMVERSIONSTRING	"1.0.2"		/* 2017/12/12 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -75,7 +75,6 @@ last access and/or last modification times are both rare and uninteresting.
 #include <dirent.h>
 #include <regex.h>
 #include <ctype.h>
-
 
 #define SECONDSPERMINUTE	60
 #define MINUTESPERHOUR		60
@@ -549,8 +548,11 @@ time_t set_target_time_by_object_time(char *targetobjectstr, char c) {
 /*******************************************************************************
 Set the extended regular expression (pattern) to be used to match the object names.
 *******************************************************************************/
+#define MAXREGCOMPERRMSGLEN	64
 void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr) {
+    char	regcomperrmsg[MAXREGCOMPERRMSGLEN];
     int		cflags;
+    int		regcompretval;
 
     if (ignorecaseflag) {
 	cflags = REG_EXTENDED|REG_ICASE;
@@ -558,8 +560,10 @@ void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr) 
 	cflags = REG_EXTENDED;
     }
 
-    if (regcomp(extregexpptr, extregexpstr, cflags) != 0) {
-	perror("regcomp error");
+    if (regcompretval=regcomp(extregexpptr, extregexpstr, cflags) != 0) {
+	regerror(regcompretval, extregexpptr, regcomperrmsg, MAXREGCOMPERRMSGLEN);
+	printf("Regular expression error for '%s': %s\n", extregexpstr, regcomperrmsg);
+	exit(1);
     }
 }
 

@@ -42,3 +42,7 @@ v1.0.0 Fri Apr  7 21:24:59 AEST 2017
 =============================================================================================
 v1.0.1 Fri Apr 21 10:22:28 AEST 2017
 1. "verbose" was erroneously changed to "verbosity" in the usage message - changed it back.
+
+=============================================================================================
+v1.0.2 Fri Tue Dec 12 08:10:59 AEDT 2017
+1. perror doesn't work after regcomp! Who knew?!? Call regerror & exit after a regcomp error.
