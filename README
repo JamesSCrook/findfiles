@@ -1,7 +1,7 @@
 Sat May 21 16:39:18 AEST 2016
 James S. Crook
 
-For further information on findfiles: https://yosj.com.au/Staff/C_Programs/findfiles/findfiles.html
+For further information on findfiles: https://yosj.com.au/staff/c_programs/findfiles/findfiles.html
 
 For Linux and Cygwin
     gcc -o findfiles findfiles.c
