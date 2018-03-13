@@ -6,8 +6,8 @@ For further information on findfiles: https://yosj.com.au/staff/c_programs/findf
 For Linux and Cygwin
     gcc -o findfiles findfiles.c
 
-    This should also clean compile on Linux:
-    gcc -O2 -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+    This should also clean compile on Fedora Linux:
+    gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
 
 For AIX:
     gcc -maix64 -o findfiles findfiles.c

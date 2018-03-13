@@ -4,7 +4,7 @@ v0.0.1	- Initial FOSS version
 =============================================================================================
 v0.0.2
 
-Changes that are _NOT_ backward compatibile:
+Changes that are _NOT_ backward compatible:
 
 1.  The meaning of "-" (minus sign vs plus sign or equivalently, no minus sign) is reversed
     when specifying an age value with the "-A" and "-M" options. (So now "-" means the same
@@ -14,13 +14,13 @@ Changes that are _NOT_ backward compatibile:
 
 3. Daylight Savings time is handled correctly (if one can say such a thing for discontinuous time!).
 
-Changes that ARE backward compatibile:
+Changes that ARE backward compatible:
 
-1.  --long_options now require only the minumum number of characters to be unique (like getopt_long).
+1.  --long_options now require only the minimum number of characters to be unique (like getopt_long).
 
 2.  process_object now uses timestamp (Epoch) times, not ages.
 
-3.  Cosmetic changes such as better indenting and renaming varibles and functions.
+3.  Cosmetic changes such as better indenting and renaming variables and functions.
 
 =============================================================================================
 v0.0.3 Sun May 15 21:30:33 AEST 2016
@@ -46,3 +46,33 @@ v1.0.1 Fri Apr 21 10:22:28 AEST 2017
 =============================================================================================
 v1.0.2 Fri Tue Dec 12 08:10:59 AEDT 2017
 1. perror doesn't work after regcomp! Who knew?!? Call regerror & exit after a regcomp error.
+
+=============================================================================================
+v2.0.0 Wed Mar 14 09:53:49 AEDT 2018
+
+The first release with 'nanosecond' resolution!
+
+Performing timestamp comparisons where the two things being compared (e.g., a the start time
+and an object's modification time) is more convoluted when each has two timestamp values (i.e.,
+s and ns) to be compared. It would have been much simpler to combine the two in the obvious way:
+    nanoseconds_since_the_epoch = 1000000000*timestamp_s + timestame_ns
+and then just subtract these two "combined" (s/ns) values. However, doing this would have caused
+some other issues. Hence, the comparison of both s and ns timestamps.
+
+1. Added 'nanosecond' resolution - or whatever the OS (file system) offers.
+
+   Note: this can produce output with a slightly different order than findfiles versions <2.0.0,
+   but only for objects that have the same timestamp value for second.
+
+2. Added 3 new environment variables:
+    FF_STARTTIME	to aid with testing and debugging
+    FF_DATETIMEFORMAT	to configure the date/timestamp output
+    FF_AGEFORMAT	to configure the age output
+
+3. Display extra information at new verbosity levels 3 and 4 - mainly for testing and debugging.
+
+4. Store only objects' timestamp (but now in both s and ns) - no longer store its 'age'.
+
+5. Rename starttime to startime_s and add starttime_ns - and make them both global variables.
+   Do the same for targettime, targettime_s and targettime_ns.
+   (So targettime* and starttime* are no longer passed as function arguments.)
