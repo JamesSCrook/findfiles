@@ -1,4 +1,4 @@
-Sat May 21 16:39:18 AEST 2016
+Wed Mar 14 11:11:22 AEDT 2018
 James S. Crook
 
 For further information on findfiles: https://yosj.com.au/staff/c_programs/findfiles/findfiles.html
@@ -6,8 +6,13 @@ For further information on findfiles: https://yosj.com.au/staff/c_programs/findf
 For Linux and Cygwin
     gcc -o findfiles findfiles.c
 
-    This should also clean compile on Fedora Linux:
     gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+	Fedora Linux:	clean compiles
+	OpenSuse Linux: warns about USAGEMESSAGE being > 509 character long
+
+    -Wpedantic -> -pedantic and link with -lrt:
+    gcc -O2 -Wall  -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c -lrt
+	SLES:		warns about USAGEMESSAGE being > 509 character long
 
 For AIX:
     gcc -maix64 -o findfiles findfiles.c
