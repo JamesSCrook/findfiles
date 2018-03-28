@@ -69,7 +69,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"2.0.0"			/* 2018/03/13 */
+#define PROGRAMVERSIONSTRING	"2.0.1"			/* 2018/03/28 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -143,7 +143,7 @@ last access and/or last modification times are both rare and uninteresting.
   Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values.\n\
  Examples of command line arguments (parsed left to right):\n\
   -f /tmp                      # files in /tmp of any age, including future dates!\n\
-  -vfn -1M /tmp                # files in /tmp modfied <= 1 month, verbose output with ns\n\
+  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns\n\
   -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n\
   -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n\
   -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n\

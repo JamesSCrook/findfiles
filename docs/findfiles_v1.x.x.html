@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+
+<link href="styles.css" rel="stylesheet">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>findfiles</title>
+</head>
+
+<body>
+
+
+
+<h2>findfiles Version 1.x.x (deprecated)</h2>
+
+<b><font color="red">
+findfiles version 1.x.x is has 1 second time resolution. As such, it is deprecated and no longer supported.
+Please use findfiles version 2+ (with 'nanosecond' time resolution).
+</font></b> 
+<p>
+But, this is what version 1.x.x does...
+<p>
+
+findfiles finds file system objects in a UNIX-like environment and lists them in time (of last modification
+and/or access) order. It's been tested on on Linux, AIX and Cygwin.
+Download <a href="https://github.com/JamesSCrook/findfiles.git"><b>findfiles</b></a> from github.
+<p>
+But we already have find for that, right? Correct, but findfiles has more of a <u>time focus</u> and adheres
+more closely to the traditional UNIX philosophy of "do one thing and do it well".
+
+<h3>Simple findfiles Examples</h3>
+
+These are common uses cases. findfiles always lists the objects in time sorted order.
+<ol class="padbottom">
+    <li>List all the files in the /app directory tree that were modified less than 30 seconds ago:
+	<br>
+	<b>findfiles -fr -m -30s /app</b>
+    </li>
+    <li>List all the files in the Videos directory tree for files named '*.mpg' or "*.mp4' modified
+	less than 2 weeks ago and also the files in the Photos directory tree named '*.jpg' or "*.jpeg'
+	modified more than 1 month ago (all case insensitive) in verbose mode, reverse sort:
+	<br>
+	<b>findfiles -vfr -iRm -2W -p '\.mp[g4]$' Videos -m +1M -p '\.jpg$|\.jpeg$' Photos</b>
+    </li>
+    <li>List all the files in the /dblogs and /var/log directories modified later than lastlogfile was:
+	<br>
+	<b>findfiles -f -M -lastlogfile /dblogs /var/log</b>
+    </li>
+</ol>
+
+<p>
+findfiles classifies file system objects as one of these three types: (regular) <u>files</u>,
+<u>directories</u>, and "<u>other</u>" (e.g., pipes, block specials, symbolic links, etc.)
+
+<h3>The findfiles Usage Message</h3>
+
+See toward the bottom of the findfiles usage message for more examples of how to use it:
+<div style="overflow:auto; background:#CCFFCC; height:400px">
+<pre>
+usage (version 1.0.2):
+findfiles [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...
+ Some OPTIONs require arguments. These are:
+  age    : a +/- relative age value followed by a time unit
+  ERE    : a POSIX-style Extended Regular Expression (pattern)
+  path   : the pathname of a reference object (file, directory, etc.)
+  target : the pathname of an object (file, directory, etc.) to search
+ OPTIONs - can be toggled on/off (parsed left to right):
+  -d|--directories : directories   (default off)
+  -f|--files       : regular files (default off)
+  -o|--others      : other files   (default off)
+  -r|--recursive   : recursive - traverse file trees (default off)
+  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)
+ OPTIONs requiring an argument (parsed left to right):
+  -a|--acc-age [-|+]access_age       : - for newer/=, [+] for older/= ages (no default)
+  -m|--mod-age [-|+]modification_age : - for newer/=, [+] for older/= ages (default 0s: any time)
+  -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')
+  -A|--acc-ref [-|+]acc_ref_path     : - for newer, [+] for older ages (no default)
+  -M|--mod-ref [-|+]mod_ref_path     : - for newer, [+] for older ages (no default)
+  -t|--target target_path            : target path (no default)
+ Flags - are 'global' options (can NOT be toggled by setting multiple times):
+  -h|--help    : display this help message
+  -s|--seconds : display file ages in seconds (default D_hh:mm:ss)
+  -u|--units   : display units: s for seconds, B for Bytes (default off)
+  -R|--reverse : Reverse the (time) order of the output (default off)
+ Verbosity: (May be specified more than once for additional information.)
+  -v|--verbose : also display modification time, age & size(B) (default 0[off])
+ Time units:
+  Y: Years    M: Months     W: Weeks      D: Days
+  h: hours    m: minutes    s: seconds
+  Note: Specify Y, M & s with integer values. W, D, h & m can also take floating point values.
+ Examples of command line arguments (parsed left to right):
+  -f /tmp                      # files in /tmp of any age, including future dates!
+  -f -m 1D -p '\.ant$' /tmp    # files in /tmp ending in '.ant' modified &gt= 1 day ago
+  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*
+  -rfa -3h src                 # files in the src tree accessed &lt= 3 hours ago
+  -dRp pat junk                # directories named junk/*pat* - reverse sort
+  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was
+  -fvm -3h / /tmp -fda 1h /var # files in / or /tmp modified &lt= 3 hours, and dirs (but
+                               # NOT files) in /var accessed &gt= 1h, verbose output
+
+findfiles Copyright (C) 2016-2017 James S. Crook
+This program comes with ABSOLUTELY NO WARRANTY.
+This is free software, and you are welcome to redistribute it under certain conditions.
+This program is licensed under the terms of the GNU General Public License as published
+by the Free Software Foundation, either version 3 of the License, or (at your option) any
+later version (see &lthttp://www.gnu.org/licenses/&gt).
+<!--#include virtual="usage_message_v1.x.x" -->
+</pre>
+</div>
+
+<h3>Both findfiles <u>and</u> find?</h3>
+
+<ul class="padbottom">
+    <li>Yes! Because they do different things and <b><u>both</u> are incredibly useful</b>!
+    </li>
+    <li>GNU find is a fantastic utility! It does an amazing number of things. When it comes to finding,
+	it does nearly everything - it's like 128 Swiss Army knives all bolted together.
+	But for things that findfiles does, find's command line syntax is rather complex
+	and unwieldy. That's when findfiles is useful.
+    </li>
+    <li>findfiles' output is always sorted by time in some way.
+    </li>
+    <li>Download <a href="https://github.com/JamesSCrook/findfiles.git"><b>findfiles</b></a> from github.
+    </li>
+</ul>
+
+<h3>More Complicated findfiles Examples</h3>
+
+<ol class="padbottom">
+    <li>View the all the files in the /tmp tree modified in the last 10 seconds and in the /var/tmp tree
+	accessed in the last 2 minutes - least recent files first:
+	<br>
+	<b>view $(findfiles -Rfr -m -10s /tmp -a -2m /var/tmp)</b>
+    </li>
+    <li>Remove all files in the /tmp and /var/tmp trees that were last modified 1 year ago or more.
+	(Obviously you shouldn't do this if you have files that might still be required after a year!)
+	<br>
+	<b>rm $(findfiles -fr -m +1Y /tmp /var/tmp)</b>
+    </li>
+    <li>No access or modification times have been specified, so the default value ('-m 0s') means all
+	possible modification times (including future times) and the default patter ('-p ".*"') meaning all
+	patterns.
+	<br>
+	<b>findfiles -vf .</b>
+	<pre>
+20160510_101641      0D_00:15:11              30   ./barfoo
+20160510_101638      0D_00:15:14              30   ./foobar
+20160510_101633      0D_00:15:19              30   ./bar
+20160510_101630      0D_00:15:22              30   ./foo
+	</pre>
+    </li>
+    <li>Same as the above example, but with reverse sort, times displayed in seconds ('-s'), and units (both
+	's' and 'B') displayed with the units option ('-u'):
+	<br>
+	<b>findfiles -vfRsu .</b>
+	<pre>
+20160510_101630             922s              30B  ./foo
+20160510_101633             919s              30B  ./bar
+20160510_101638             914s              30B  ./foobar
+20160510_101641             911s              30B  ./barfoo
+	</pre>
+    </li>
+    <li>A verbosity of >1 when using time of last modification and/or access shows additional time information:
+	<br>
+	<b>findfiles -vvf -m -2M . -a 3m /tmp</b>
+	<pre>
+i: start time:      1462792747s = Mon 09 May 2016 <b><font color="red">21</font></b>:19:07 <b><font color="blue">AEST</font></b>
+i: target time:     1457522347s = Wed 09 Mar 2016 <b><font color="red">22</font></b>:19:07 <b><font color="blue">AEDT</font></b>
+i:      61.00000D =    5270400s last modified after (newer than) target time
+i: start time:      1462792747s = Mon 09 May 2016 21:19:07 AEST
+i: target time:     1462792567s = Mon 09 May 2016 21:16:07 AEST
+i:       0.00208D =        180s last accessed before (older than) target time
+...
+20160509_211545      0D_00:03:22              49   /tmp/foo
+...
+20160505_170053      4D_04:18:14            2258   ./bar
+...
+	</pre>
+	Note <b><font color="red">the hour difference (21 vs 22 hours)</font></b> and
+	<b><font color="blue">the time zone change (AEST vs AEDT)</font></b> when looking
+	back 2 months. DST was in effect then (Mar) and "now" (May) is standard time (southern hemisphere!).
+    </li>
+    <li>The same as the example above, but this time a timezone with no DST (UTC) has been specified.
+	Note that the hour and timezone values are unchanged:
+	<p>
+	<b>export TZ=UTC; findfiles -vvf -m -2M .</b>
+	<pre>
+i: start time:      1462793131s = Mon 09 May 2016 11:25:31 UTC
+i: target time:     1457522731s = Wed 09 Mar 2016 11:25:31 UTC
+i:      61.00000D =    5270400s last modified after (newer than) target time
+...
+20160505_070053      4D_04:24:38            2258   ./bar
+...
+	</pre>
+    </li>
+</ol>
+
+<h3>Notes</h3>
+<ol class="padbottom">
+    <li>The output of findfiles is time focused - time of last access and/or last modification.
+	Even if there is no time specified on the command line, the output is sorted by time.</li>
+    <li>The default sort order is newest first (decreasing).</li>
+    <li>findfiles parses (and processes) command line arguments (targets and options) in left to
+	right (L-R) order.</li>
+    <li>Some command line options are flags that can be toggled on/off (parsed L-R).</li>
+    <li>Some command line options require parameters that can be set and reset (parsed L-R).</li>
+    <li>Some command line options are global - they cannot be toggled on/off.</li>
+    <li>--long-options are supported, but getopt_long was not used because of the L-R requirement.
+	As a result, "--" does not work (i.e., not the way getopt_long handles it).</li>
+    <li>If findfiles is instructed to find some objects based on last modification time and
+	others based on last access time, the output will be sorted based whichever time (last
+	access or last modification) was requested for each object.</li>
+    <li>Integer or floating point number(s) of weeks, days, hours or minutes may be specified.</li>
+    <li>Only integer numbers of years, months and seconds may be specified because years and
+	months are variable in length, and 1 second is the minimum resolution.</li>
+    <li>As with any command (even find), be extremely careful when calling rm or mv, e.g.:
+	<b>rm $(findfiles -fr -m 1Y /tmp /var/tmp)</b> !
+        findfiles might not return any files, so rm would have no argument!</li>
+    <li>findfiles has been observed to report negative times. This has been observed mainly
+	when searching the entire file system (/). It is not known how this is possible, but
+	don't be alarmed if you observe it.</li>
+</ol>
+
+</body>
+</html>

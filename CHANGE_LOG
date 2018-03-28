@@ -1,54 +1,14 @@
 =============================================================================================
-v0.0.1	- Initial FOSS version
+v2.0.1 - Wed Mar 28 12:27:09 AEDT 2018
+
+1. Corrected USAGEMESSAGE "-vfn -1M /tmp" to "-vfn -m -1M /tmp" & the spelling of modified.
+
+2. Flipped CHANGE_LOG (this file) to have the most recent entries at the top.
+
+3. Added docs directory (and html files and usage messages) for github pages
 
 =============================================================================================
-v0.0.2
-
-Changes that are _NOT_ backward compatible:
-
-1.  The meaning of "-" (minus sign vs plus sign or equivalently, no minus sign) is reversed
-    when specifying an age value with the "-A" and "-M" options. (So now "-" means the same
-    as it does for "-a" and "-m".)
-
-2. "Y" Year(s) and "M" Month(s) are calculated correctly (not 365D and 30D, as they were before)
-
-3. Daylight Savings time is handled correctly (if one can say such a thing for discontinuous time!).
-
-Changes that ARE backward compatible:
-
-1.  --long_options now require only the minimum number of characters to be unique (like getopt_long).
-
-2.  process_object now uses timestamp (Epoch) times, not ages.
-
-3.  Cosmetic changes such as better indenting and renaming variables and functions.
-
-=============================================================================================
-v0.0.3 Sun May 15 21:30:33 AEST 2016
-
-1. Added variables to compare_object_info & a cast to qsort to get a clean compile with this:
-   gcc -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
-
-2. Updated and standardized the usage message (foo, not <foo>), fixed a spelling mistake
-
-=============================================================================================
-v1.0.0 Fri Apr  7 21:24:59 AEST 2017
-
-1. a target of / no longer produces // (double slash) output
-
-2. Produce a suitable warning if no targets are specified with verbosity > 1.
-
-3. Changed verbose to verbosity in the usage message.
-
-=============================================================================================
-v1.0.1 Fri Apr 21 10:22:28 AEST 2017
-1. "verbose" was erroneously changed to "verbosity" in the usage message - changed it back.
-
-=============================================================================================
-v1.0.2 Fri Tue Dec 12 08:10:59 AEDT 2017
-1. perror doesn't work after regcomp! Who knew?!? Call regerror & exit after a regcomp error.
-
-=============================================================================================
-v2.0.0 Wed Mar 14 09:53:49 AEDT 2018
+v2.0.0 - Wed Mar 14 09:53:49 AEDT 2018
 
 The first release with 'nanosecond' resolution!
 
@@ -76,3 +36,52 @@ some other issues. Hence, the comparison of both s and ns timestamps.
 5. Rename starttime to startime_s and add starttime_ns - and make them both global variables.
    Do the same for targettime, targettime_s and targettime_ns.
    (So targettime* and starttime* are no longer passed as function arguments.)
+
+=============================================================================================
+v1.0.2 - Fri Tue Dec 12 08:10:59 AEDT 2017
+1. perror doesn't work after regcomp! Who knew?!? Call regerror & exit after a regcomp error.
+
+=============================================================================================
+v1.0.1 - Fri Apr 21 10:22:28 AEST 2017
+1. "verbose" was erroneously changed to "verbosity" in the usage message - changed it back.
+
+=============================================================================================
+v1.0.0 - Fri Apr  7 21:24:59 AEST 2017
+
+1. a target of / no longer produces // (double slash) output
+
+2. Produce a suitable warning if no targets are specified with verbosity > 1.
+
+3. Changed verbose to verbosity in the usage message.
+
+=============================================================================================
+v0.0.3 Sun May 15 21:30:33 AEST 2016
+
+1. Added variables to compare_object_info & a cast to qsort to get a clean compile with this:
+   gcc -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+
+2. Updated and standardized the usage message (foo, not <foo>), fixed a spelling mistake
+
+=============================================================================================
+v0.0.2 - Forgot to record the date.
+
+Changes that are _NOT_ backward compatible:
+
+1.  The meaning of "-" (minus sign vs plus sign or equivalently, no minus sign) is reversed
+    when specifying an age value with the "-A" and "-M" options. (So now "-" means the same
+    as it does for "-a" and "-m".)
+
+2. "Y" Year(s) and "M" Month(s) are calculated correctly (not 365D and 30D, as they were before)
+
+3. Daylight Savings time is handled correctly (if one can say such a thing for discontinuous time!).
+
+Changes that ARE backward compatible:
+
+1.  --long_options now require only the minimum number of characters to be unique (like getopt_long).
+
+2.  process_object now uses timestamp (Epoch) times, not ages.
+
+3.  Cosmetic changes such as better indenting and renaming variables and functions.
+
+=============================================================================================
+v0.0.1 - Initial FOSS version
