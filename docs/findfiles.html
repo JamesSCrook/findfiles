@@ -155,12 +155,14 @@ later version (see &lthttp://www.gnu.org/licenses/&gt).
 	20160510_101641             911s              30B  ./barfoo<br>
 	</samp>
     </li>
-    <li>A verbosity of >1 when using time of last modification and/or access shows additional time information:
+
+    <li>Find all files in the current directory modified &lt= 6 months ago.
+	A verbosity of &gt= 2 shows the start time information (i:) line:
 	<br>
 	<b>findfiles -vvf -m -6M .</b><br>
 	<samp>
 	i: target time:      1505260813.333995833s ~= Wed 13 Sep 2017 <b><font color="red">10</font></b>:00:13 <b><font color="blue">AEST</font></b><br>
-	i:     181.00000D ~=   15638400.000000000s last modified after (newer than) target time ('6M') <br>
+	i:     181.00000D ~=   15638400.000000000s last modified after (newer than) target time ('6M')<br>
 	i: start time:       1520899213.333995833s ~= Tue 13 Mar 2018 <b><font color="red">11</font></b>:00:13 <b><font color="blue">AEDT</font></b><br>
 	20180313_104138      0D_00:18:34            2675   ./bar<br>
 	</samp>
@@ -169,16 +171,18 @@ later version (see &lthttp://www.gnu.org/licenses/&gt).
 	Note <b><font color="red">the hour difference (10 vs 11 hours)</font></b> and
 	<b><font color="blue">the time zone change (AEST vs AEDT)</font></b> when looking
 	back 6 months. DST was not in effect then (Sep) and "now" (Mar) DST time is in effect (southern hemisphere!).
-	<br>
+	<p>
+	A verbosity of &gt= 2 when using time of last modification and/or access also shows the target time(s) and
+	the last modified/accessed time(s) newer/older than (in s.ns) information (i:) lines.
     </li>
     <li>The same as the example above, but this time with the display nanoseconds ('-n') flag as well:
 	<br>
 	<b>findfiles -vvfn -m -6M .</b><br>
 	<samp>
-	i: target time:      1505260813.333995833s ~= Wed 13 Sep 2017 10:00:13 AEST
-	i:     181.00000D ~=   15638400.000000000s last modified after (newer than) target time ('6M')
-	i: start time:       1520899213.333995833s ~= Tue 13 Mar 2018 11:00:13 AEDT
-	20171215_230124.407596237     87D_11:58:48.926399596            2675   ./bar
+	i: target time:      1505260813.333995833s ~= Wed 13 Sep 2017 10:00:13 AEST<br>
+	i:     181.00000D ~=   15638400.000000000s last modified after (newer than) target time ('6M')<br>
+	i: start time:       1520899213.333995833s ~= Tue 13 Mar 2018 11:00:13 AEDT<br>
+	20171215_230124.407596237     87D_11:58:48.926399596            2675   ./bar<br>
 	</samp>
     </li>
     <li>The same as the previous example, but this time the timezone environment variable TZ
@@ -192,7 +196,7 @@ later version (see &lthttp://www.gnu.org/licenses/&gt).
 	20171215_230124.407596237     87D_11:58:48.926399596            2675   ./bar<br>
 	</samp>
     </li>
-    <li> In other languages (French, in this case):
+    <li> Info line (i:) dates in other languages (French, in this case):
 	<br>
 	<b>export TZ=UTC<br>
 	export LANG=fr_FR.UTF-8<br>
@@ -222,7 +226,7 @@ results!
 	2017-12-15T12:01:24Z     87D_11:58:48            2675   ./bar<br>
 	</samp>
     </li>
-    <li>A verbosity of >= 3 shows objects' timestamps and age, both in s.ns:
+    <li>A verbosity of &gt= 3 shows objects' timestamps and age, both in s.ns:
 	<br>
 	<b>export TZ=UTC<br>
 	export FF_DATETIMEFORMAT='%04d-%02d-%02dT%02d:%02d:%02dZ'<br>
@@ -237,7 +241,7 @@ results!
 	i: FF_AGEFORMAT='%7ldD_%02ld:%02ld:%02ld'               (default)<br>
 	</samp>
 	<br>
-	A verbosity of >=4 shows the environment variables that can be configured, and their values.
+	A verbosity of &gt=4 shows the environment variables that can be configured, and their values.
 	This is displayed after the file output.
 	<br>
     </li>
