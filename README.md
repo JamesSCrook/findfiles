@@ -1,6 +1,6 @@
 # findfiles
 
-Please refer to the github-pages link: [https://jamesscrook.github.io/findfiles](https://jamesscrook.github.io/findfiles)
+See https://yosj.com.au/staff/c_programs/findfiles/findfiles.html for details.
 
 But, very briefly, findfiles is a \*nix command line utility that finds file system objects[*] in a UNIX-like environment and lists them in time (of last modification and/or access) order. It's been tested on on Linux, AIX and Cygwin.
 
