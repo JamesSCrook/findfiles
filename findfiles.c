@@ -1,21 +1,21 @@
 /*******************************************************************************
 ********************************************************************************
 
-    findfiles: find files based on various selection criteria
-    Copyright (C) 2016-2018 James S. Crook
+	findfiles: find files based on various selection criteria
+	Copyright (C) 2016-2018 James S. Crook
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with this program. If not, see <http://www.gnu.org/licenses/>.
 ********************************************************************************
 *******************************************************************************/
 
@@ -33,27 +33,27 @@ See the usage/help message for additional options.
 
 There are 3 main "times": "starttime", "targettime" and "objecttime"
 Like the OS, findfiles stores each of these in two separate variables:
-  "starttime" is actually  starttime_s and  starttime_ns
+ "starttime"  is actually  starttime_s and  starttime_ns
  "targettime" is actually targettime_s and targettime_ns
  "objecttime" is actually objecttime_s and objecttime_ns
 Thes are the number of seconds (s) & nanoseconds (ns) since "the epoch"
 (1970-01-01 00:00:00.000000000).
 
-findfiles sets "starttime" to the current system time when it starts. Both of the
-optional age of last modification ('-m') and age of last access ('-a')
+findfiles sets "starttime" to the current system time when it starts. Both of
+the optional age of last modification ('-m') and age of last access ('-a')
 calculate a "targettime" relative to "startime". Note that "targettime"
 is always earlier (smaller than) "starttime".
 
 Here is a timeline with time increasing to the right:
 
-				 "targettime"			"starttime"
-				 v				v
+                                 "targettime"                   "starttime"
+                                 v                              v
 -------------olderthanttargettimeInewerthanttargettime---------------> -m & -a
 ------------olderthanttargettime) (newerthanttargettime--------------> -M & -A
 
 For example:
- "-fm -10m" : find files modified <= 10 minutes ago (modified after "targettime")
- "-fm  10m" : find files modified >= 10 minutes ago (modified before "targettime")
+ "-fm -10m" : find files modified <= 10 mins ago (modified after "targettime")
+ "-fm  10m" : find files modified >= 10 mins ago (modified before "targettime")
 Note that in both cases, "targettime" is 10 minutes before "starttime"! So, the
 numerical value and unit ("10m", in both cases above) sets "targettime" to 10
 minutes before "starttime", and "-" causes findfiles to list objects last
@@ -69,7 +69,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"2.0.1"			/* 2018/03/28 */
+#define PROGRAMVERSIONSTRING	"2.1.0"					/* 2018/10/08 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -83,31 +83,34 @@ last access and/or last modification times are both rare and uninteresting.
 #include <regex.h>
 #include <ctype.h>
 
-#define SECONDSPERMINUTE	60
-#define MINUTESPERHOUR		60
-#define HOURSPERDAY		24
-#define MAXOBJAGESTRLEN		32
-#define TMBASEMONTH		1
-#define TMBASEYEAR		1900
-#define SECONDSPERHOUR		(SECONDSPERMINUTE*MINUTESPERHOUR)
-#define SECONDSPERDAY		(SECONDSPERMINUTE*MINUTESPERHOUR*HOURSPERDAY)
-#define SECONDSPERWEEK		(SECONDSPERMINUTE*MINUTESPERHOUR*HOURSPERDAY*7)
-#define MINUTESPERDAY		(MINUTESPERHOUR*HOURSPERDAY)
+#define MAX(x,y)	((x)>(y)?(x):(y))
+
+#define SECONDSPERMINUTE		60
+#define MINUTESPERHOUR			60
+#define HOURSPERDAY				24
+#define MAXOBJAGESTRLEN			32
+#define TMBASEMONTH				1
+#define TMBASEYEAR				1900
+#define SECONDSPERHOUR			(SECONDSPERMINUTE*MINUTESPERHOUR)
+#define SECONDSPERDAY			(SECONDSPERMINUTE*MINUTESPERHOUR*HOURSPERDAY)
+#define SECONDSPERWEEK			(SECONDSPERMINUTE*MINUTESPERHOUR*HOURSPERDAY*7)
+#define MINUTESPERDAY			(MINUTESPERHOUR*HOURSPERDAY)
 #define NANOSECONDSPERSECOND	1000000000
 
-#define MAXDATESTRLENGTH	64
-#define MAXPATHLENGTH		2048
-#define INITMAXNUMOBJS		4096
-#define PATHDELIMITERCHAR	'/'
-#define RELMODAGECHAR		'm'
-#define REFMODAGECHAR		'M'
-#define SECONDSUNITCHAR		's'
-#define BYTESUNITCHAR		'B'
-#define DEFAULTAGE		0
-#define DEFAULTERE		".*"
-#define NOW			"Now"
+#define MAXRECURSIONDEPTH		10000
+#define MAXDATESTRLENGTH		64
+#define MAXPATHLENGTH			2048
+#define INITMAXNUMOBJS			4096
+#define PATHDELIMITERCHAR		'/'
+#define RELMODAGECHAR			'm'
+#define REFMODAGECHAR			'M'
+#define SECONDSUNITCHAR			's'
+#define BYTESUNITCHAR			'B'
+#define DEFAULTAGE				0
+#define DEFAULTERE				".*"
+#define NOW						"Now"
 
-#define GETOPTSTR		"+dforia:m:p:t:A:M:hnsuRv"
+#define GETOPTSTR				"+dforia:m:p:t:A:D:M:hnsuRv"
 #define USAGEMESSAGE \
 "usage (version %s):\n\
 %s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n\
@@ -128,13 +131,14 @@ last access and/or last modification times are both rare and uninteresting.
   -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n\
   -t|--target target_path            : target path (no default)\n\
   -A|--acc-ref [-|+]acc_ref_path     : - for newer, [+] for older ages (no default)\n\
+  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n\
   -M|--mod-ref [-|+]mod_ref_path     : - for newer, [+] for older ages (no default)\n\
  Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n\
-  -h|--help    : display this help message\n\
-  -n|--nano    : display 'nanoseconds' (in verbose mode) or whatever resolution the OS/FS supports\n\
-  -s|--seconds : display file ages in seconds (default D_hh:mm:ss)\n\
-  -u|--units   : display units: s for seconds, B for Bytes (default off)\n\
-  -R|--reverse : Reverse the (time) order of the output (default off)\n\
+  -h|--help        : display this help message\n\
+  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n\
+  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n\
+  -u|--units       : display units: s for seconds, B for Bytes (default off)\n\
+  -R|--reverse     : Reverse the (time) order of the output (default off)\n\
  Verbosity: (May be specified more than once for additional information.)\n\
   -v|--verbose : also display modification time, age & size(B) (default 0[off])\n\
  Time units:\n\
@@ -160,9 +164,9 @@ by the Free Software Foundation, either version 3 of the License, or (at your op
 later version (see <http://www.gnu.org/licenses/>).\n"
 
 typedef struct {
-    char	*name;
-    char	*defaultvalue;
-    char	**valueptr;
+	char	*name;
+	char	*defaultvalue;
+	char	**valueptr;
 } Envvar;
 
 char	*starttimestr;
@@ -170,16 +174,16 @@ char	*datetimeformatstr;
 char	*ageformatstr;
 
 Envvar envvartable[] = {
-    { "FF_STARTTIME",		NOW,				&starttimestr },
-    { "FF_DATETIMEFORMAT",	"%04d%02d%02d_%02d%02d%02d",	&datetimeformatstr },
-    { "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",	&ageformatstr },
+	{ "FF_STARTTIME",		NOW,							&starttimestr },
+	{ "FF_DATETIMEFORMAT",	"%04d%02d%02d_%02d%02d%02d",	&datetimeformatstr },
+	{ "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",		&ageformatstr },
 };
 
-typedef struct {	/* storage of object names, ages, modification times & sizes */
-    char	*name;
-    time_t	time_s;
-    time_t	time_ns;
-    off_t	size;
+typedef struct {		/* storage of object names, ages, modification times & sizes */
+	char	*name;
+	time_t	time_s;
+	time_t	time_ns;
+	off_t	size;
 } Objectinfo;
 
 Objectinfo	*objectinfotable;
@@ -189,100 +193,101 @@ time_t	starttime_ns;
 time_t	targettime_s	= DEFAULTAGE;	/* set default, 0 s, and */
 time_t	targettime_ns	= DEFAULTAGE;	/* 0 ns - find files of all ages */
 
-int	maxnumberobjects	= INITMAXNUMOBJS;
-int	numobjsfound		= 0;
-int	numtargets		= 0;
-int	returncode		= 0;
+int		maxnumberobjects	= INITMAXNUMOBJS;
+int		numobjsfound		= 0;
+int		numtargets			= 0;
+int		returncode			= 0;
 
 /* Command line option flags - all set to false */
-int	recursiveflag		= 0;
-int	ignorecaseflag		= 0;
-int	regularfileflag		= 0;
-int	directoryflag		= 0;
-int	otherobjectflag		= 0;
-int	verbosity		= 0;
-int	displaysecondsflag	= 0;
-int	displaynsecflag		= 0;
-int	accesstimeflag		= 0;
-int	newerthantargetflag	= 0;
-int	sortmultiplier		= 1;
+int		maxrecursiondepth	= MAXRECURSIONDEPTH;
+int		recursiveflag		= 0;
+int		ignorecaseflag		= 0;
+int		regularfileflag		= 0;
+int		directoryflag		= 0;
+int		otherobjectflag		= 0;
+int		verbosity			= 0;
+int		displaysecondsflag	= 0;
+int		displaynsecflag		= 0;
+int		accesstimeflag		= 0;
+int		newerthantargetflag	= 0;
+int		sortmultiplier		= 1;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
 
-void process_directory(char *, regex_t *);
+void process_directory(char *, regex_t *, int);
 
 
 /*******************************************************************************
 Display the usage (help) message.
 *******************************************************************************/
 void display_usage_message(char *progname) {
-    printf(USAGEMESSAGE, PROGRAMVERSIONSTRING, progname);
+	printf(USAGEMESSAGE, PROGRAMVERSIONSTRING, progname, MAXRECURSIONDEPTH);
 }
 
 
 /*******************************************************************************
 Process a (file system) object - eg, a regular file, directory, symbolic
-link, fifo, special file, etc.  If the object's attributes satisfy the command
+link, fifo, special file, etc. If the object's attributes satisfy the command
 line arguments (i.e., the name matches the extended regular expression (pattern),
 the access xor modification time, etc. then, this object is appended to the
 objectinfotable. If objectinfotable is full, its size is dynamically doubled.
 *******************************************************************************/
 void process_object(char *pathname, regex_t *extregexpptr) {
-    struct	stat statinfo;
-    char	objectname[MAXPATHLENGTH], *chptr;
-    time_t	objecttime_s, objecttime_ns;
+	struct	stat statinfo;
+	char	objectname[MAXPATHLENGTH], *chptr;
+	time_t	objecttime_s, objecttime_ns;
 
-    /* extract the object name after the last '/' char */
-    if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
-	strcpy(objectname, chptr+1);
-    } else {
-	strcpy(objectname, pathname);
-    }
-
-    if (regexec(extregexpptr, objectname, (size_t)0, NULL, 0) == 0) {
-	if (lstat(pathname, &statinfo) == -1) {
-	    fprintf(stderr, "process_object: Cannot access '%s'\n", pathname);
-	    returncode = 1;
-	    return;
-	}
-
-	if (accesstimeflag) {
-	    objecttime_s = statinfo.st_atime;
-	    objecttime_ns = statinfo.st_atim.tv_nsec;
+	/* extract the object name after the last '/' char */
+	if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
+		strcpy(objectname, chptr+1);
 	} else {
-	    objecttime_s = statinfo.st_mtime;
-	    objecttime_ns = statinfo.st_mtim.tv_nsec;
+		strcpy(objectname, pathname);
 	}
 
-	if ((targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
-	    ( newerthantargetflag && (
-		objecttime_s > targettime_s ||
-		(objecttime_s == targettime_s && objecttime_ns >= targettime_ns))
-	    ) ||
-	    (!newerthantargetflag && (
-		objecttime_s < targettime_s ||
-		(objecttime_s == targettime_s && objecttime_ns <= targettime_ns))
-	    )
-	) {
-	    if (numobjsfound >= maxnumberobjects) {
-		maxnumberobjects *= 2;
-		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
-		    perror("realloc failed");
-		    exit(1);
+	if (regexec(extregexpptr, objectname, (size_t)0, NULL, 0) == 0) {
+		if (lstat(pathname, &statinfo) == -1) {
+			fprintf(stderr, "process_object: Cannot access '%s'\n", pathname);
+			returncode = 1;
+			return;
 		}
-	    }
 
-	    if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
-		perror("malloc failed");
-		exit(1);
-	    }
-	    strcpy(objectinfotable[numobjsfound].name, pathname);
-	    objectinfotable[numobjsfound].size = statinfo.st_size;
-	    objectinfotable[numobjsfound].time_s = objecttime_s;
-	    objectinfotable[numobjsfound].time_ns = objecttime_ns;
-	    numobjsfound++;
+		if (accesstimeflag) {
+			objecttime_s = statinfo.st_atime;
+			objecttime_ns = statinfo.st_atim.tv_nsec;
+		} else {
+			objecttime_s = statinfo.st_mtime;
+			objecttime_ns = statinfo.st_mtim.tv_nsec;
+		}
+
+		if ((targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
+			( newerthantargetflag && (
+				objecttime_s > targettime_s ||
+				(objecttime_s == targettime_s && objecttime_ns >= targettime_ns))
+			) ||
+			(!newerthantargetflag && (
+				objecttime_s < targettime_s ||
+				(objecttime_s == targettime_s && objecttime_ns <= targettime_ns))
+			)
+		) {
+			if (numobjsfound >= maxnumberobjects) {
+				maxnumberobjects *= 2;
+				if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
+					perror("realloc failed");
+					exit(1);
+				}
+			}
+
+			if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
+				perror("malloc failed");
+				exit(1);
+			}
+			strcpy(objectinfotable[numobjsfound].name, pathname);
+			objectinfotable[numobjsfound].size = statinfo.st_size;
+			objectinfotable[numobjsfound].time_s = objecttime_s;
+			objectinfotable[numobjsfound].time_ns = objecttime_ns;
+			numobjsfound++;
+		}
 	}
-    }
 }
 
 
@@ -292,55 +297,55 @@ lstat("symlinktodir",  &buf) returns that symlink is a symbolic link - correct!
 lstat("symlinktodir/", &buf) returns that symlink is a directory!!! - INcorrect!
 *******************************************************************************/
 void trim_trailing_slashes(char *pathname) {
-    char	*chptr;
-    int		len;
+	char	*chptr;
+	int		len;
 
-    len = strlen(pathname);
-    if (len > 1) {	/* handle the special case of '/' correctly */
-	chptr = pathname+len-1;
-	while (chptr >= pathname && *chptr == PATHDELIMITERCHAR) {
-	    *chptr-- = '\0';
+	len = strlen(pathname);
+	if (len > 1) {		/* handle the special case of '/' correctly */
+		chptr = pathname+len-1;
+		while (chptr >= pathname && *chptr == PATHDELIMITERCHAR) {
+			*chptr-- = '\0';
+		}
 	}
-    }
 }
 
 
 /*******************************************************************************
 Process a (file system) pathname (a file, directory or "other").
 *******************************************************************************/
-void process_path(char *pathname, regex_t *extregexpptr, int toplevelflag) {
-    struct stat	statinfo;
+void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
+	struct stat	statinfo;
 
-    if (toplevelflag) {
-	trim_trailing_slashes(pathname);
-    }
-
-    if (!regularfileflag && !directoryflag && !otherobjectflag) {
-	fprintf(stderr, "No output target types requested for '%s'!\n",pathname);
-	returncode = 1;
-	return;
-    }
-
-    if (lstat(pathname, &statinfo) == -1) {
-	fprintf(stderr, "process_path: Cannot access '%s'\n", pathname);
-	returncode = 1;
-	return;
-    }
-
-    if (S_ISREG(statinfo.st_mode)) {
-	if (regularfileflag) {
-	    process_object(pathname, extregexpptr);
+	if (recursiondepth == 0) {
+		trim_trailing_slashes(pathname);
 	}
-    } else if (S_ISDIR(statinfo.st_mode)) {
-	if (directoryflag) {
-	    process_object(pathname, extregexpptr);
+
+	if (!regularfileflag && !directoryflag && !otherobjectflag) {
+		fprintf(stderr, "No output target types requested for '%s'!\n",pathname);
+		returncode = 1;
+		return;
 	}
-	if (recursiveflag || toplevelflag) {
-	    process_directory(pathname, extregexpptr);
+
+	if (lstat(pathname, &statinfo) == -1) {
+		fprintf(stderr, "process_path: Cannot access '%s'\n", pathname);
+		returncode = 1;
+		return;
 	}
-    } else if (otherobjectflag) {
-	process_object(pathname, extregexpptr);
-    }
+
+	if (S_ISREG(statinfo.st_mode)) {
+		if (regularfileflag) {
+			process_object(pathname, extregexpptr);
+		}
+	} else if (S_ISDIR(statinfo.st_mode)) {
+		if (directoryflag) {
+			process_object(pathname, extregexpptr);
+		}
+		if (recursiondepth == 0 || (recursiveflag && recursiondepth <= maxrecursiondepth)) {
+			process_directory(pathname, extregexpptr, recursiondepth);
+		}
+	} else if (otherobjectflag) {
+		process_object(pathname, extregexpptr);
+	}
 }
 
 
@@ -348,37 +353,37 @@ void process_path(char *pathname, regex_t *extregexpptr, int toplevelflag) {
 Process a directory. Open it, read all it's entries (objects) and call
 process_path for each one (EXCEPT '.' and '..') and close it.
 *******************************************************************************/
-void process_directory(char *pathname, regex_t *extregexpptr) {
-    DIR		  *dirptr;
-    struct dirent *direntptr;
-    char	   newpathname[MAXPATHLENGTH];
-    char	   dirpath[MAXPATHLENGTH];
+void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth) {
+	DIR				*dirptr;
+	struct dirent	*direntptr;
+	char			newpathname[MAXPATHLENGTH];
+	char			dirpath[MAXPATHLENGTH];
 
-    if (strcmp(pathname, "/")) {
-	sprintf(dirpath, "%s%c", pathname, PATHDELIMITERCHAR);  /* not "/" */
-    } else {
-	sprintf(dirpath, "%c", PATHDELIMITERCHAR);	    /* pathname is "/" */
-    }
-
-    if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
-	fprintf(stderr, "opendir error");
-	perror(pathname);
-	returncode = 1;
-	return;
-    }
-
-    while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
-	if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
-	    /* create newpathname from pathname/objectname */
-	    sprintf(newpathname, "%s%s", dirpath, direntptr->d_name);
-	    process_path(newpathname, extregexpptr, 0);
+	if (strcmp(pathname, "/")) {
+		sprintf(dirpath, "%s%c", pathname, PATHDELIMITERCHAR);	/* not "/" */
+	} else {
+		sprintf(dirpath, "%c", PATHDELIMITERCHAR);			/* pathname is "/" */
 	}
-    }
 
-    if (closedir(dirptr)) {
-	perror(pathname);
-	returncode = 1;
-    }
+	if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
+		fprintf(stderr, "opendir error");
+		perror(pathname);
+		returncode = 1;
+		return;
+	}
+
+	while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
+		if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
+			/* create newpathname from pathname/objectname */
+			sprintf(newpathname, "%s%s", dirpath, direntptr->d_name);
+			process_path(newpathname, extregexpptr, recursiondepth+1);
+		}
+	}
+
+	if (closedir(dirptr)) {
+		perror(pathname);
+		returncode = 1;
+	}
 }
 
 
@@ -387,18 +392,18 @@ Comparison function for sorting objectinfotable by time (with qsort). Sort is by
 seconds, then nanoseconds, then filename.
 *******************************************************************************/
 int compare_object_info(const void *firstptr, const void *secondptr) {
-    const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
-    const Objectinfo	*secondobjinfoptr = secondptr;
+	const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
+	const Objectinfo	*secondobjinfoptr = secondptr;
 
-    if (firstobjinfoptr->time_s != secondobjinfoptr->time_s) {
-        return (secondobjinfoptr->time_s - firstobjinfoptr->time_s)*sortmultiplier;
-    } else {
-	if (firstobjinfoptr->time_ns != secondobjinfoptr->time_ns) {
-	    return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
+	if (firstobjinfoptr->time_s != secondobjinfoptr->time_s) {
+		return (secondobjinfoptr->time_s - firstobjinfoptr->time_s)*sortmultiplier;
 	} else {
-	    return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
-	}   
-    }   
+		if (firstobjinfoptr->time_ns != secondobjinfoptr->time_ns) {
+			return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
+		} else {
+			return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
+		}
+	}
 }
 
 
@@ -410,93 +415,93 @@ the objectage_ns value and subtract 1s from the objectage_s value whenever
 starttime_ns < the_object's_age_in_ns.
 *******************************************************************************/
 void list_objects() {
-    struct tm	*localtimeinfoptr;
-    char	 objectagestr[MAXOBJAGESTRLEN], *chptr;
-    int		 foundidx, negativeageflag;
-    time_t	 objectage_s, absobjectage_s, days, hrs, mins, secs;
-    time_t	 objectage_ns = DEFAULTAGE;
+	struct tm	*localtimeinfoptr;
+	char		objectagestr[MAXOBJAGESTRLEN], *chptr;
+	int			foundidx, negativeageflag;
+	time_t		objectage_s, absobjectage_s, days, hrs, mins, secs;
+	time_t		objectage_ns = DEFAULTAGE;
 
-    qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_info);
-    for (foundidx=0; foundidx<numobjsfound; foundidx++) {
-	if (verbosity > 0) {
-	    if (verbosity > 2) {	/* Test/debug: object time in s and ns */
-		printf("%10ld.%09ld = ", objectinfotable[foundidx].time_s,
-		    objectinfotable[foundidx].time_ns);
-	    }
+	qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_info);
+	for (foundidx=0; foundidx<numobjsfound; foundidx++) {
+		if (verbosity > 0) {
+			if (verbosity > 2) {		/* Test/debug: object time in s and ns */
+				printf("%10ld.%09ld = ", objectinfotable[foundidx].time_s,
+					objectinfotable[foundidx].time_ns);
+			}
 
-	    /* year, month day, hour, minute, second */
-	    localtimeinfoptr = localtime(&objectinfotable[foundidx].time_s);
-	    printf(datetimeformatstr, localtimeinfoptr->tm_year+TMBASEYEAR,
-		localtimeinfoptr->tm_mon+TMBASEMONTH, localtimeinfoptr->tm_mday,
-		localtimeinfoptr->tm_hour, localtimeinfoptr->tm_min,
-		localtimeinfoptr->tm_sec);
-	    if (displaynsecflag) {	/* ns */
-		printf(".%09ld", objectinfotable[foundidx].time_ns);
-	    }
+			/* year, month day, hour, minute, second */
+			localtimeinfoptr = localtime(&objectinfotable[foundidx].time_s);
+			printf(datetimeformatstr, localtimeinfoptr->tm_year+TMBASEYEAR,
+				localtimeinfoptr->tm_mon+TMBASEMONTH, localtimeinfoptr->tm_mday,
+				localtimeinfoptr->tm_hour, localtimeinfoptr->tm_min,
+				localtimeinfoptr->tm_sec);
+			if (displaynsecflag) {		/* ns */
+				printf(".%09ld", objectinfotable[foundidx].time_ns);
+			}
 
-	    if (starttime_s > objectinfotable[foundidx].time_s || /* starttime >= object's time */
-					    (starttime_s == objectinfotable[foundidx].time_s &&
-					    starttime_ns >= objectinfotable[foundidx].time_ns)) {
-		objectage_s = starttime_s - objectinfotable[foundidx].time_s;
-		if (starttime_ns >= objectinfotable[foundidx].time_ns) {
-		    objectage_ns = starttime_ns - objectinfotable[foundidx].time_ns;
-		} else {
-		    objectage_ns = starttime_ns - objectinfotable[foundidx].time_ns + NANOSECONDSPERSECOND;
-		    objectage_s--;
+			if (starttime_s > objectinfotable[foundidx].time_s || /* starttime >= object's time */
+											(starttime_s == objectinfotable[foundidx].time_s &&
+											starttime_ns >= objectinfotable[foundidx].time_ns)) {
+				objectage_s = starttime_s - objectinfotable[foundidx].time_s;
+				if (starttime_ns >= objectinfotable[foundidx].time_ns) {
+					objectage_ns = starttime_ns - objectinfotable[foundidx].time_ns;
+				} else {
+					objectage_ns = starttime_ns - objectinfotable[foundidx].time_ns + NANOSECONDSPERSECOND;
+					objectage_s--;
+				}
+				negativeageflag = 0;
+			} else {					/* object's time is after starttime - future! */
+				objectage_s = starttime_s - objectinfotable[foundidx].time_s;
+				if (starttime_ns <= objectinfotable[foundidx].time_ns) {
+					objectage_ns = objectinfotable[foundidx].time_ns - starttime_ns;
+				} else {
+					objectage_ns = objectinfotable[foundidx].time_ns - starttime_ns + NANOSECONDSPERSECOND;
+					objectage_s++;
+				}
+				negativeageflag = 1;
+			}
+
+			if (verbosity > 2) {		/* Test/debug: object age in s and ns */
+				printf(" %10ld.%09ld = ", objectage_s, objectage_ns);
+			}
+
+			if (displaysecondsflag) {	/* object age in seconds */
+				printf("%16ld", objectage_s);
+				if (displaynsecflag) {
+					printf(".%09ld", objectage_ns);
+				}
+				printf("%c ", secondsunitchar);
+			} else {					/* object age in days, hours, minutes and seconds */
+				absobjectage_s = abs(objectage_s);
+				days = absobjectage_s/SECONDSPERDAY;
+				hrs = absobjectage_s/SECONDSPERHOUR - days*HOURSPERDAY;
+				mins = absobjectage_s/SECONDSPERMINUTE - days*MINUTESPERDAY - hrs*MINUTESPERHOUR;
+				secs = absobjectage_s % SECONDSPERMINUTE;
+				sprintf(objectagestr, ageformatstr, days, hrs, mins, secs);
+				/* if objectage_s is negative (future timestamp), display a - sign */
+				if (negativeageflag) {
+					if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
+						*chptr = '-'; /* %07ld : OK for 999999 days - until the year 4707 */
+					} else {
+						fprintf(stderr, "Insuficient 'days' field width in '%s'\n", ageformatstr);
+						exit(1);
+					}
+				}
+				printf("%s", objectagestr);
+
+				if (displaynsecflag) {
+					printf(".%09ld", objectage_ns);
+				}
+				printf(" ");
+			}
+			printf(" %14lu%c  ", objectinfotable[foundidx].size, bytesunitchar);
 		}
-		negativeageflag = 0;
-	    } else {			/* object's time is after starttime - future! */
-		objectage_s = starttime_s - objectinfotable[foundidx].time_s;
-		if (starttime_ns <= objectinfotable[foundidx].time_ns) {
-		    objectage_ns = objectinfotable[foundidx].time_ns - starttime_ns;
-		} else {
-		    objectage_ns = objectinfotable[foundidx].time_ns - starttime_ns + NANOSECONDSPERSECOND;
-		    objectage_s++;
-		}
-		negativeageflag = 1;
-	    }
-
-	    if (verbosity > 2) {	/* Test/debug: object age in s and ns */
-		printf(" %10ld.%09ld = ", objectage_s, objectage_ns);
-	    }
-
-	    if (displaysecondsflag) {	/* object age in seconds */
-		printf("%16ld", objectage_s);
-		if (displaynsecflag) {
-		    printf(".%09ld", objectage_ns);
-		}
-		printf("%c ", secondsunitchar);
-	    } else {			/* object age in days, hours, minutes and seconds */
-		absobjectage_s = abs(objectage_s);
-		days = absobjectage_s/SECONDSPERDAY;
-		hrs = absobjectage_s/SECONDSPERHOUR - days*HOURSPERDAY;
-		mins = absobjectage_s/SECONDSPERMINUTE - days*MINUTESPERDAY - hrs*MINUTESPERHOUR;
-		secs = absobjectage_s % SECONDSPERMINUTE;
-		sprintf(objectagestr, ageformatstr, days, hrs, mins, secs);
-		/* if objectage_s is negative (future timestamp), display a - sign */
-		if (negativeageflag) {
-		    if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
-			*chptr = '-'; /* %07ld : OK for 999999 days - until the year 4707 */
-		    } else {
-			fprintf(stderr, "Insuficient 'days' field width in '%s'\n", ageformatstr);
-			exit(1);
-		    }
-		}
-		printf("%s", objectagestr);
-
-		if (displaynsecflag) {
-		    printf(".%09ld", objectage_ns);
-		}
-		printf(" ");
-	    }
-	    printf(" %14lu%c  ", objectinfotable[foundidx].size, bytesunitchar);
+		printf("%s\n", objectinfotable[foundidx].name);
 	}
-	printf("%s\n", objectinfotable[foundidx].name);
-    }
 
-    if (numtargets == 0 && verbosity > 1) {
-	fprintf(stderr, "Warning: no targets were specified on the command line!\n");
-    }
+	if (numtargets == 0 && verbosity > 1) {
+		fprintf(stderr, "Warning: no targets were specified on the command line!\n");
+	}
 }
 
 
@@ -506,14 +511,14 @@ months and years vary in size. E.g., '0.5M' does NOT always equate to the same
 amount of time, but 1.33s, 0.25h, 0.5m, 0.1W, etc., all do.
 *******************************************************************************/
 void check_integer(char *relativeagestr) {
-    char	*chptr;
+	char	*chptr;
 
-    for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
-	if (!isdigit(*chptr) && *chptr != '-' && *chptr != '+' ) {
-	    fprintf(stderr, "Warning: non-integer character '%c' in '%s'!\n",
-							    *chptr, relativeagestr);
+	for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
+		if (!isdigit(*chptr) && *chptr != '-' && *chptr != '+' ) {
+			fprintf(stderr, "Warning: non-integer character '%c' in '%s'!\n",
+															*chptr, relativeagestr);
+		}
 	}
-    }
 }
 
 
@@ -524,12 +529,12 @@ parts. Update the breakdown time structure (brkdwntimeptr, see below) by the
 calculated integer number of seconds, and return the calculated number of ns.
 *******************************************************************************/
 time_t adjust_relative_age(char *relativeagestr, int *timeunitptr, long secsperunit) {
-    double	decimal_s, fraction_s;
+	double	decimal_s, fraction_s;
 
-    decimal_s = atof(relativeagestr) * secsperunit;
-    fraction_s = decimal_s - (long)decimal_s;
-    *timeunitptr -= (int)decimal_s;
-    return (time_t)(fraction_s * NANOSECONDSPERSECOND);
+	decimal_s = atof(relativeagestr) * secsperunit;
+	fraction_s = decimal_s - (long)decimal_s;
+	*timeunitptr -= (int)decimal_s;
+	return (time_t)(fraction_s * NANOSECONDSPERSECOND);
 }
 
 
@@ -541,147 +546,147 @@ I.e., "-30s" and "[+]30s" both result in targettime = starttime-30s, but the
 last access time and last modification time.
 *******************************************************************************/
 void set_target_time_by_relative_age(char *relativeagestr, char c) {
-    char	timeunitchar;
-    struct tm	*brkdwntimeptr;
-    char	datestr[MAXDATESTRLENGTH];
-    time_t	relagenanoseconds;
-    time_t	relage_ns = DEFAULTAGE;
+	char		timeunitchar;
+	struct tm	*brkdwntimeptr;
+	char		datestr[MAXDATESTRLENGTH];
+	time_t		relagenanoseconds;
+	time_t		relage_ns = DEFAULTAGE;
 
-    if (c == RELMODAGECHAR) {
-	accesstimeflag = 0;
-    } else {
-	accesstimeflag = 1;
-    }
+	if (c == RELMODAGECHAR) {
+		accesstimeflag = 0;
+	} else {
+		accesstimeflag = 1;
+	}
 
-    if (*relativeagestr == '-' ) {
-	/* eg, "-m -15D" find objects modified <= 15 days ago (newer than) */
-	newerthantargetflag = 1;
-	relativeagestr++;
-    } else {
-	/* eg, "-m [+]15D" find objects modified >= 15 days ago (older than) */
-	newerthantargetflag = 0;
-    }
+	if (*relativeagestr == '-' ) {
+		/* eg, "-m -15D" find objects modified <= 15 days ago (newer than) */
+		newerthantargetflag = 1;
+		relativeagestr++;
+	} else {
+		/* eg, "-m [+]15D" find objects modified >= 15 days ago (older than) */
+		newerthantargetflag = 0;
+	}
 
-    timeunitchar = *(relativeagestr+strlen(relativeagestr+1));
-    brkdwntimeptr = localtime(&starttime_s);
+	timeunitchar = *(relativeagestr+strlen(relativeagestr+1));
+	brkdwntimeptr = localtime(&starttime_s);
 
-    switch (timeunitchar) {
-	case 's': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), 1);
-	    break;
-	case 'm': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERMINUTE);
-	    break;
-	case 'h': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERHOUR);
-	    break;
-	case 'D': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERDAY);
-	    break;
-	case 'W': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERWEEK);
-	    break;
-	case 'M': check_integer(relativeagestr);
-	    brkdwntimeptr->tm_mon -= atoi(relativeagestr);
-	    break;
-	case 'Y': check_integer(relativeagestr);
-	    brkdwntimeptr->tm_year -= atoi(relativeagestr);
-	    break;
-	default:  fprintf(stderr, "Illegal time unit '%c'\n", timeunitchar);
-	    exit(1);
-    }
+	switch (timeunitchar) {
+		case 's': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), 1);
+			break;
+		case 'm': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERMINUTE);
+			break;
+		case 'h': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERHOUR);
+			break;
+		case 'D': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERDAY);
+			break;
+		case 'W': relage_ns = adjust_relative_age(relativeagestr, &(brkdwntimeptr->tm_sec), SECONDSPERWEEK);
+			break;
+		case 'M': check_integer(relativeagestr);
+			brkdwntimeptr->tm_mon -= atoi(relativeagestr);
+			break;
+		case 'Y': check_integer(relativeagestr);
+			brkdwntimeptr->tm_year -= atoi(relativeagestr);
+			break;
+		default: fprintf(stderr, "Illegal time unit '%c'\n", timeunitchar);
+			exit(1);
+	}
 
-    targettime_s = mktime(brkdwntimeptr);
+	targettime_s = mktime(brkdwntimeptr);
 
-    /* Due to storing times in 2 variables (*_s and *_ns), it is necessary to add 1s to
-       the targettime_ns value and subtract 1s from the targettime_s value whenever
-       starttime_ns < relage_ns. */
-    if (starttime_ns >= relage_ns) {
-	targettime_ns = starttime_ns - relage_ns;
-    } else {
-	targettime_ns = starttime_ns - relage_ns + NANOSECONDSPERSECOND;
-	targettime_s--;
-    }
+	/* Due to storing times in 2 variables (*_s and *_ns), it is necessary to add 1s to
+		the targettime_ns value and subtract 1s from the targettime_s value whenever
+		starttime_ns < relage_ns. */
+	if (starttime_ns >= relage_ns) {
+		targettime_ns = starttime_ns - relage_ns;
+	} else {
+		targettime_ns = starttime_ns - relage_ns + NANOSECONDSPERSECOND;
+		targettime_s--;
+	}
 
-    /* This will be a problem in 2262 */
-    relagenanoseconds = (starttime_s-targettime_s)*NANOSECONDSPERSECOND + starttime_ns-targettime_ns;
+	/* This will be a problem in 2262 */
+	relagenanoseconds = (starttime_s-targettime_s)*NANOSECONDSPERSECOND + starttime_ns-targettime_ns;
 
-    if (verbosity > 1) {
-	strftime(datestr, MAXDATESTRLENGTH, "%c", brkdwntimeptr);
-	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
-	fprintf(stderr, "i: %13.5fD ~= %10ld.%09lds last %s %s target time ('%s')\n",
-	    (float)(starttime_s-targettime_s)/SECONDSPERDAY,
-	    relagenanoseconds/NANOSECONDSPERSECOND,
-	    relagenanoseconds%NANOSECONDSPERSECOND,
-	    accesstimeflag ? "accessed" : "modified",
-	    newerthantargetflag ? "after (newer than)" : "before (older than)",
-	    relativeagestr);
-	fflush(stderr);
-    }
+	if (verbosity > 1) {
+		strftime(datestr, MAXDATESTRLENGTH, "%c", brkdwntimeptr);
+		fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
+		fprintf(stderr, "i: %13.5fD ~= %10ld.%09lds last %s %s target time ('%s')\n",
+			(float)(starttime_s-targettime_s)/SECONDSPERDAY,
+			relagenanoseconds/NANOSECONDSPERSECOND,
+			relagenanoseconds%NANOSECONDSPERSECOND,
+			accesstimeflag ? "accessed" : "modified",
+			newerthantargetflag ? "after (newer than)" : "before (older than)",
+			relativeagestr);
+		fflush(stderr);
+	}
 }
 
 
 /*******************************************************************************
 Set targettime to be the same as that of the reference object's last modification
-or last access time, as required. 
+or last access time, as required.
 *******************************************************************************/
 void set_target_time_by_object_time(char *targetobjectstr, char c) {
-    struct stat	 statinfo;
+	struct stat	statinfo;
 
-    newerthantargetflag = 0;
-    if (*targetobjectstr == '-') {
-	/* eg, "-M -foo" find objects last modified AFTER foo was (NEWER than) */
-	newerthantargetflag = 1;
-	targetobjectstr++;
-    } else if (*targetobjectstr == '+') {
-	/* eg, "-M [+]foo" find objects last modified BEFORE foo was (OLDER than) */
-	targetobjectstr++;
-    }
-    if (verbosity > 1) {
-	fprintf(stderr, "i: last %s %s than '%s'\n",
-		accesstimeflag ? "accessed" : "modified",
-		newerthantargetflag ? "after (newer than)" : "before (older than)",
-		targetobjectstr);
-	fflush(stderr);
-    }
-
-    if (*targetobjectstr && (lstat(targetobjectstr, &statinfo) != -1)) {
-	if (c == REFMODAGECHAR) {
-	    accesstimeflag = 0;
-	    targettime_s = statinfo.st_mtime;
-	    targettime_ns = statinfo.st_mtim.tv_nsec;
-	} else {
-	    accesstimeflag = 1;
-	    targettime_s = statinfo.st_mtime;
-	    targettime_ns = statinfo.st_atim.tv_nsec;
+	newerthantargetflag = 0;
+	if (*targetobjectstr == '-') {
+		/* eg, "-M -foo" find objects last modified AFTER foo was (NEWER than) */
+		newerthantargetflag = 1;
+		targetobjectstr++;
+	} else if (*targetobjectstr == '+') {
+		/* eg, "-M [+]foo" find objects last modified BEFORE foo was (OLDER than) */
+		targetobjectstr++;
 	}
-    } else {
-	fprintf(stderr, "Cannot access '%s'\n", targetobjectstr);
-	exit(1);
-    }
-    if (newerthantargetflag) {
-	targettime_ns += 1;	/* +1ns for NEWER than (NOT the same age!) */
-    } else {
-	targettime_ns -= 1 ;	/* -1ns for OLDER than (NOT the same age!) */
-    }
+	if (verbosity > 1) {
+		fprintf(stderr, "i: last %s %s than '%s'\n",
+				accesstimeflag ? "accessed" : "modified",
+				newerthantargetflag ? "after (newer than)" : "before (older than)",
+				targetobjectstr);
+		fflush(stderr);
+	}
+
+	if (*targetobjectstr && (lstat(targetobjectstr, &statinfo) != -1)) {
+		if (c == REFMODAGECHAR) {
+			accesstimeflag = 0;
+			targettime_s = statinfo.st_mtime;
+			targettime_ns = statinfo.st_mtim.tv_nsec;
+		} else {
+			accesstimeflag = 1;
+			targettime_s = statinfo.st_mtime;
+			targettime_ns = statinfo.st_atim.tv_nsec;
+		}
+	} else {
+		fprintf(stderr, "Cannot access '%s'\n", targetobjectstr);
+		exit(1);
+	}
+	if (newerthantargetflag) {
+		targettime_ns += 1;		/* +1ns for NEWER than (NOT the same age!) */
+	} else {
+		targettime_ns -= 1 ;	/* -1ns for OLDER than (NOT the same age!) */
+	}
 }
 
 
 /*******************************************************************************
 Set the extended regular expression (pattern) to be used to match the object names.
 *******************************************************************************/
-#define MAXREGCOMPERRMSGLEN	64
+#define MAXREGCOMPERRMSGLEN		64
 void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr) {
-    char	regcomperrmsg[MAXREGCOMPERRMSGLEN];
-    int		cflags;
-    int		regcompretval;
+	char	regcomperrmsg[MAXREGCOMPERRMSGLEN];
+	int		cflags;
+	int		regcompretval;
 
-    if (ignorecaseflag) {
-	cflags = REG_EXTENDED|REG_ICASE;
-    } else {
-	cflags = REG_EXTENDED;
-    }
+	if (ignorecaseflag) {
+		cflags = REG_EXTENDED|REG_ICASE;
+	} else {
+		cflags = REG_EXTENDED;
+	}
 
-    if ((regcompretval=regcomp(extregexpptr, extregexpstr, cflags)) != 0) {
-	regerror(regcompretval, extregexpptr, regcomperrmsg, MAXREGCOMPERRMSGLEN);
-	printf("Regular expression error for '%s': %s\n", extregexpstr, regcomperrmsg);
-	exit(1);
-    }
+	if ((regcompretval=regcomp(extregexpptr, extregexpstr, cflags)) != 0) {
+		regerror(regcompretval, extregexpptr, regcomperrmsg, MAXREGCOMPERRMSGLEN);
+		printf("Regular expression error for '%s': %s\n", extregexpstr, regcomperrmsg);
+		exit(1);
+	}
 }
 
 
@@ -693,75 +698,76 @@ Below, --longopt only requires enough of the first part (e.g., --long) to be
 uninque (à la getopt_long).
 *******************************************************************************/
 void command_line_long_to_short(char *longopt) {
-    char	*equalptr;
-    unsigned	optiontableidx;
-    int		optionfoundflag = 0;
-    char	*optiontblcharptr, *longoptcharptr;
+	char		*equalptr;
+	unsigned	optiontableidx;
+	int			optionfoundflag = 0;
+	char		*optiontblcharptr, *longoptcharptr;
 
-    typedef struct {
-	char *shortform;
-	char *longform;
-	int  minuniqlen;
-    } Optiontype;
+	typedef struct {
+		char	*shortform;
+		char	*longform;
+		int		minuniqlen;
+	} Optiontype;
 
-    Optiontype optiontable[] = {
-	{ "-a", "--acc-age"     , 7 },
-	{ "-A", "--acc-ref"     , 7 },
-	{ "-d", "--directories" , 3 },
-	{ "-f", "--files"       , 3 },
-	{ "-h", "--help"        , 3 },
-	{ "-i", "--ignore-case" , 3 },
-	{ "-m", "--mod-age"     , 7 },
-	{ "-M", "--mod-ref"     , 7 },
-	{ "-n", "--nano"        , 3 },
-	{ "-o", "--others"      , 3 },
-	{ "-p", "--pattern"     , 3 },
-	{ "-r", "--recursive"   , 5 },
-	{ "-R", "--reverse"     , 5 },
-	{ "-s", "--seconds"     , 3 },
-	{ "-t", "--target"      , 3 },
-	{ "-u", "--units"       , 3 },
-	{ "-v", "--verbose"     , 3 },
-    };
+	Optiontype optiontable[] = {
+		{ "-a", "--acc-age"		, 7 },
+		{ "-A", "--acc-ref"		, 7 },
+		{ "-D", "--depth"		, 4 },
+		{ "-d", "--directories"	, 4 },
+		{ "-f", "--files"		, 3 },
+		{ "-h", "--help"		, 3 },
+		{ "-i", "--ignore-case"	, 3 },
+		{ "-m", "--mod-age"		, 7 },
+		{ "-M", "--mod-ref"		, 7 },
+		{ "-n", "--nanoseconds"	, 3 },
+		{ "-o", "--others"		, 3 },
+		{ "-p", "--pattern"		, 3 },
+		{ "-r", "--recursive"	, 5 },
+		{ "-R", "--reverse"		, 5 },
+		{ "-s", "--seconds"		, 3 },
+		{ "-t", "--target"		, 3 },
+		{ "-u", "--units"		, 3 },
+		{ "-v", "--verbose"		, 3 },
+	};
 
-    for (optiontableidx=0; optiontableidx<sizeof(optiontable)/sizeof(Optiontype); optiontableidx++) {
+	for (optiontableidx=0; optiontableidx<sizeof(optiontable)/sizeof(Optiontype); optiontableidx++) {
 
-	/* if '--longopt' with or without something following (eg, '--longopt=<param>' */
-	if (!strncmp(longopt, optiontable[optiontableidx].longform,
-							optiontable[optiontableidx].minuniqlen)) {
+		/* if '--longopt' with or without something following (eg, '--longopt=<param>' */
+		if (!strncmp(longopt, optiontable[optiontableidx].longform,
+														optiontable[optiontableidx].minuniqlen)) {
 
-	    /* check for invalid characters in (possibly less than the full) --longopt */
-	    optiontblcharptr = optiontable[optiontableidx].longform;
-	    longoptcharptr = longopt;
-	    while (*optiontblcharptr && *longoptcharptr && *optiontblcharptr == *longoptcharptr
-								    && *longoptcharptr != '=') {
-		optiontblcharptr++;
-		longoptcharptr++;
-	    }
-	    if (*longoptcharptr != '\0' && *longoptcharptr != '=') {
-		fprintf(stderr, "Bad command line option '%s', aborting\n", longopt);
-		exit(1);
-	    }
+			/* check for invalid characters in (possibly less than the full) --longopt */
+			optiontblcharptr = optiontable[optiontableidx].longform;
+			longoptcharptr = longopt;
+			while (*optiontblcharptr && *longoptcharptr && *optiontblcharptr == *longoptcharptr
+																	&& *longoptcharptr != '=') {
+				optiontblcharptr++;
+				longoptcharptr++;
+			}
+			if (*longoptcharptr != '\0' && *longoptcharptr != '=') {
+				fprintf(stderr, "Bad command line option '%s', aborting\n", longopt);
+				exit(1);
+			}
 
-	    equalptr = strchr(longopt, '=');
-	    /* if --longopt has no equal sign following it */
-	    if (equalptr == NULL) {
-		memmove(longopt, optiontable[optiontableidx].shortform, 3);
-		optionfoundflag = 1;
-	    /* if exactly '--longopt=<param>', and NOT exactly '--longopt=' (<param> missing) */
-	    } else if (*(equalptr+1) != '\0') {
-		*(longopt+1) = *(optiontable[optiontableidx].shortform+1);
-		memmove(longopt+2, equalptr+1, strlen(equalptr+1)+1);
-		optionfoundflag = 1;
-	    }
+			equalptr = strchr(longopt, '=');
+			/* if --longopt has no equal sign following it */
+			if (equalptr == NULL) {
+				memmove(longopt, optiontable[optiontableidx].shortform, 3);
+				optionfoundflag = 1;
+			/* if exactly '--longopt=<param>', and NOT exactly '--longopt=' (<param> missing) */
+			} else if (*(equalptr+1) != '\0') {
+				*(longopt+1) = *(optiontable[optiontableidx].shortform+1);
+				memmove(longopt+2, equalptr+1, strlen(equalptr+1)+1);
+				optionfoundflag = 1;
+			}
+		}
 	}
-    }
 
-    /* if '--bogus_option' or '--valid_option=' was found */
-    if (!optionfoundflag) {
-	fprintf(stderr, "Illegal command line option '%s', aborting\n", longopt);
-	exit(1);
-    }
+	/* if '--bogus_option' or '--valid_option=' was found */
+	if (!optionfoundflag) {
+		fprintf(stderr, "Illegal command line option '%s', aborting\n", longopt);
+		exit(1);
+	}
 }
 
 
@@ -770,32 +776,32 @@ Set starttime_s and starttime_ns with the current system time. (Unless the
 relevant environment variable is set, which is mainly useful for testing.)
 *******************************************************************************/
 void set_starttime() {
-    struct timespec	currenttime;
-    int			numdigits;
-    char		*decimalptr;
+	struct timespec	currenttime;
+	int				numdigits;
+	char			*decimalptr;
 
-    if (!strcmp(starttimestr, NOW)) {
-	/* get the current time in s and ns */
-	clock_gettime(CLOCK_REALTIME, &currenttime);
-	starttime_s = currenttime.tv_sec;
-	starttime_ns = currenttime.tv_nsec;
-    } else {	/* generally, this is used for testing */
-	starttime_s = atoi(starttimestr);
-	if ((decimalptr=strchr(starttimestr, '.')) != NULL) {
-	    starttime_ns = atoi(++decimalptr);
-	    numdigits = strlen(decimalptr);
-	    while (numdigits < 9) {	/* No integer power operator, Doh! */
-		starttime_ns *= 10;
-		numdigits++;
-	    }
-	    if (starttime_ns < 0 || starttime_ns >= NANOSECONDSPERSECOND) {
-		fprintf(stderr, "Illegal value for starttime fraction: %ld ns\n", starttime_ns);
-		exit(1);
-	    }
-	} else {
-	    starttime_ns = 0;
+	if (!strcmp(starttimestr, NOW)) {
+		/* get the current time in s and ns */
+		clock_gettime(CLOCK_REALTIME, &currenttime);
+		starttime_s = currenttime.tv_sec;
+		starttime_ns = currenttime.tv_nsec;
+	} else {	/* generally, this is used for testing */
+		starttime_s = atoi(starttimestr);
+		if ((decimalptr=strchr(starttimestr, '.')) != NULL) {
+			starttime_ns = atoi(++decimalptr);
+			numdigits = strlen(decimalptr);
+			while (numdigits < 9) {		/* No integer power operator, Doh! */
+				starttime_ns *= 10;
+				numdigits++;
+			}
+			if (starttime_ns < 0 || starttime_ns >= NANOSECONDSPERSECOND) {
+				fprintf(stderr, "Illegal value for starttime fraction: %ld ns\n", starttime_ns);
+				exit(1);
+			}
+		} else {
+			starttime_ns = 0;
+		}
 	}
-    }
 }
 
 
@@ -803,13 +809,13 @@ void set_starttime() {
 Display the starttime in s.ns and human readable format.
 *******************************************************************************/
 void list_starttime() {
-    struct tm	*brkdwntimeptr;
-    char	datestr[MAXDATESTRLENGTH];
+	struct tm	*brkdwntimeptr;
+	char		datestr[MAXDATESTRLENGTH];
 
-    brkdwntimeptr = localtime(&starttime_s);
-    strftime(datestr, MAXDATESTRLENGTH, "%c", brkdwntimeptr);
-    fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
-    fflush(stderr);
+	brkdwntimeptr = localtime(&starttime_s);
+	strftime(datestr, MAXDATESTRLENGTH, "%c", brkdwntimeptr);
+	fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
+	fflush(stderr);
 }
 
 
@@ -818,18 +824,18 @@ If any of the environment variables in envvartable have been set, overwrite the
 default values of the relevant (string) variable with the contents.
 *******************************************************************************/
 void set_envvars() {
-    unsigned int idx;
-    char *envvarvaluestr;
+	unsigned int	idx;
+	char			*envvarvaluestr;
 
-    for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
-        if ((envvarvaluestr=getenv(envvartable[idx].name)) != NULL) {
-            *envvartable[idx].valueptr = malloc(strlen(envvarvaluestr)+1);
-            strcpy(*envvartable[idx].valueptr, envvarvaluestr);
-        } else {
-            *envvartable[idx].valueptr = malloc(strlen(envvartable[idx].defaultvalue)+1);
-            strcpy(*envvartable[idx].valueptr, envvartable[idx].defaultvalue);
-        }
-    }
+	for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
+		if ((envvarvaluestr=getenv(envvartable[idx].name)) != NULL) {
+			*envvartable[idx].valueptr = malloc(strlen(envvarvaluestr)+1);
+			strcpy(*envvartable[idx].valueptr, envvarvaluestr);
+		} else {
+			*envvartable[idx].valueptr = malloc(strlen(envvartable[idx].defaultvalue)+1);
+			strcpy(*envvartable[idx].valueptr, envvartable[idx].defaultvalue);
+		}
+	}
 }
 
 
@@ -838,96 +844,97 @@ List all the variables that can be set (all the entries of envvartable) - and
 the value of each one. If that's not the default value, list that too.
 *******************************************************************************/
 void list_envvartable() {
-    unsigned int idx;
+	unsigned int	idx;
 
-    for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
-        fprintf(stderr, "i: %s='%s'\t\t", envvartable[idx].name, *envvartable[idx].valueptr);
-	if (strcmp(*envvartable[idx].valueptr, envvartable[idx].defaultvalue)) {
-	    fprintf(stderr, "(default='%s')\n", envvartable[idx].defaultvalue);
-	} else {
-	    fprintf(stderr, "(default)\n");
+	for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
+		fprintf(stderr, "i: %s='%s'\t\t", envvartable[idx].name, *envvartable[idx].valueptr);
+		if (strcmp(*envvartable[idx].valueptr, envvartable[idx].defaultvalue)) {
+			fprintf(stderr, "(default='%s')\n", envvartable[idx].defaultvalue);
+		} else {
+			fprintf(stderr, "(default)\n");
+		}
 	}
-    }
-    fflush(stderr);
+	fflush(stderr);
 }
 
 
 /*******************************************************************************
-Parse the command line arguments left to right, processing them in order.  See
+Parse the command line arguments left to right, processing them in order. See
 the usage message.
 *******************************************************************************/
 int main(int argc, char *argv[]) {
-    extern char		*optarg;
-    extern int		optind, optopt, opterr;
-    int			optchar, optidx;
-    regex_t		extregexp;
+	extern char	*optarg;
+	extern int	optind, optopt, opterr;
+	int			optchar, optidx;
+	regex_t		extregexp;
 
-    setlocale(LC_ALL, getenv("LANG"));
-    setlocale(LC_NUMERIC, "en_US.UTF-8");
+	setlocale(LC_ALL, getenv("LANG"));
+	setlocale(LC_NUMERIC, "en_US.UTF-8");
 
-    if (argc <= 1) {
-	display_usage_message(argv[0]);
-	exit(1);
-    }
-
-    if ((objectinfotable=(Objectinfo*)calloc(INITMAXNUMOBJS, sizeof(Objectinfo))) == NULL) {
-	perror("Could not calloc initial object info table");
-	exit(1);
-    }
-
-    /* replace any --longarg(s) with the equivalent -l (short argument(s)) */
-    for (optidx=1; optidx<argc; optidx++) {
-	if (!strncmp(argv[optidx], "--", 2)) {
-	    command_line_long_to_short(argv[optidx]);
-	}
-    }
-
-    set_envvars();
-    set_starttime();
-    set_extended_regular_expression(DEFAULTERE, &extregexp);	/* set default */
-
-    /* Both while loops and the if (below) are required because command line options
-    and arguments can be interspersed and are processed in (left-to-right) order */
-    while (optind < argc) {
-	while ((optchar = getopt(argc, argv, GETOPTSTR)) != -1) {
-	    switch(optchar) {
-		case 'd': directoryflag    = !directoryflag;			break;
-		case 'f': regularfileflag  = !regularfileflag;			break;
-		case 'o': otherobjectflag  = !otherobjectflag;			break;
-		case 'r': recursiveflag    = !recursiveflag;			break;
-		case 'i': ignorecaseflag   = !ignorecaseflag;			break;
-		case 'a': set_target_time_by_relative_age(optarg, optchar);	break;
-		case 'm': set_target_time_by_relative_age(optarg, optchar);	break;
-		case 'p': set_extended_regular_expression(optarg, &extregexp);	break;
-		case 'A': set_target_time_by_object_time(optarg, optchar);	break;
-		case 'M': set_target_time_by_object_time(optarg, optchar);	break;
-		case 'h': display_usage_message(argv[0]); exit(0);		break;
-		case 'n': displaynsecflag = 1;					break;
-		case 's': displaysecondsflag = 1;				break;
-		case 'u': secondsunitchar = SECONDSUNITCHAR;
-			  bytesunitchar   = BYTESUNITCHAR;			break;
-		case 'v': verbosity++;						break;
-		case 'R': sortmultiplier  = -1;					break;
-		case 't': process_path(optarg, &extregexp, 1);
-		    numtargets++;						break;
-		break;
-	    }
+	if (argc <= 1) {
+		display_usage_message(argv[0]);
+		exit(1);
 	}
 
-	if (optind < argc) {	/* See above comment. Yes, this is required! */
-	    process_path(argv[optind], &extregexp, 1);
-	    numtargets++;
-	    optind++;
+	if ((objectinfotable=(Objectinfo*)calloc(INITMAXNUMOBJS, sizeof(Objectinfo))) == NULL) {
+		perror("Could not calloc initial object info table");
+		exit(1);
 	}
-    }
 
-    if (verbosity > 1) {
-	list_starttime();
-    }
-    list_objects();
-    fflush(stdout);
-    if (verbosity > 3) {
-	list_envvartable();
-    }
-    return returncode;
+	/* replace any --longarg(s) with the equivalent -l (short argument(s)) */
+	for (optidx=1; optidx<argc; optidx++) {
+		if (!strncmp(argv[optidx], "--", 2)) {
+			command_line_long_to_short(argv[optidx]);
+		}
+	}
+
+	set_envvars();
+	set_starttime();
+	set_extended_regular_expression(DEFAULTERE, &extregexp);	/* set default */
+
+	/* Both while loops and the if (below) are required because command line options
+	and arguments can be interspersed and are processed in (left-to-right) order */
+	while (optind < argc) {
+		while ((optchar = getopt(argc, argv, GETOPTSTR)) != -1) {
+			switch(optchar) {
+				case 'd': directoryflag		= !directoryflag;					break;
+				case 'f': regularfileflag	= !regularfileflag;					break;
+				case 'o': otherobjectflag	= !otherobjectflag;					break;
+				case 'r': recursiveflag		= !recursiveflag;					break;
+				case 'i': ignorecaseflag	= !ignorecaseflag;					break;
+				case 'a': set_target_time_by_relative_age(optarg, optchar);		break;
+				case 'm': set_target_time_by_relative_age(optarg, optchar);		break;
+				case 'p': set_extended_regular_expression(optarg, &extregexp);	break;
+				case 'A': set_target_time_by_object_time(optarg, optchar);		break;
+				case 'D': maxrecursiondepth = MAX(0,atoi(optarg));				break;
+				case 'M': set_target_time_by_object_time(optarg, optchar);		break;
+				case 'h': display_usage_message(argv[0]); exit(0);				break;
+				case 'n': displaynsecflag = 1;									break;
+				case 's': displaysecondsflag = 1;								break;
+				case 'u': secondsunitchar = SECONDSUNITCHAR;
+					bytesunitchar = BYTESUNITCHAR;								break;
+				case 'v': verbosity++;											break;
+				case 'R': sortmultiplier = -1;									break;
+				case 't': process_path(optarg, &extregexp, 0);
+					numtargets++;												break;
+				break;
+			}
+		}
+
+		if (optind < argc) {	/* See above comment. Yes, this is required! */
+			process_path(argv[optind], &extregexp, 0);
+			numtargets++;
+			optind++;
+		}
+	}
+
+	if (verbosity > 1) {
+		list_starttime();
+	}
+	list_objects();
+	fflush(stdout);
+	if (verbosity > 3) {
+		list_envvartable();
+	}
+	return returncode;
 }
