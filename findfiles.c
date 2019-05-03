@@ -2,7 +2,7 @@
 ********************************************************************************
 
 	findfiles: find files based on various selection criteria
-	Copyright (C) 2016-2018 James S. Crook
+	Copyright (C) 2016-2019 James S. Crook
 
 	This program is free software: you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ Note that "-m" and "-a" use <= and/or >=, but, "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"2.1.0"					/* 2018/10/08 */
+#define PROGRAMVERSIONSTRING	"2.1.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,7 +100,10 @@ last access and/or last modification times are both rare and uninteresting.
 #define MAXRECURSIONDEPTH		10000
 #define MAXDATESTRLENGTH		64
 #define MAXPATHLENGTH			2048
-#define INITMAXNUMOBJS			4096
+#define INITMAXNUMOBJS			(  8*1024)	/* Allocate the object table to hold up to this many entries. */
+#define MAXNUMOBJSMLTFCT		2			/* Dynamically increase the object table size by this factor... */
+#define MAXNUMOBJSMLTLIM		(512*1024)	/* up to this number. After that, ... */
+#define MAXNUMOBJSINCVAL		( 64*1024)	/* increment the size by this value. */
 #define PATHDELIMITERCHAR		'/'
 #define RELMODAGECHAR			'm'
 #define REFMODAGECHAR			'M'
@@ -156,7 +159,7 @@ last access and/or last modification times are both rare and uninteresting.
   -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but\n\
                                # NOT files) in /var accessed >= 1h, verbose output\n\
 \n\
-findfiles Copyright (C) 2016-2018 James S. Crook\n\
+findfiles Copyright (C) 2016-2019 James S. Crook\n\
 This program comes with ABSOLUTELY NO WARRANTY.\n\
 This is free software, and you are welcome to redistribute it under certain conditions.\n\
 This program is licensed under the terms of the GNU General Public License as published\n\
@@ -179,7 +182,7 @@ Envvar envvartable[] = {
 	{ "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",		&ageformatstr },
 };
 
-typedef struct {		/* storage of object names, ages, modification times & sizes */
+typedef struct {		/* each object's name, modification XOR access time & size */
 	char	*name;
 	time_t	time_s;
 	time_t	time_ns;
@@ -270,7 +273,11 @@ void process_object(char *pathname, regex_t *extregexpptr) {
 			)
 		) {
 			if (numobjsfound >= maxnumberobjects) {
-				maxnumberobjects *= 2;
+				if (maxnumberobjects <= MAXNUMOBJSMLTLIM) {
+					maxnumberobjects *= MAXNUMOBJSMLTFCT;
+				} else {
+					maxnumberobjects += MAXNUMOBJSINCVAL;
+				}
 				if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
 					perror("realloc failed");
 					exit(1);
@@ -375,7 +382,8 @@ void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth
 	while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
 		if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
 			/* create newpathname from pathname/objectname */
-			sprintf(newpathname, "%s%s", dirpath, direntptr->d_name);
+			strcpy(newpathname, dirpath);
+			strcat(newpathname, direntptr->d_name);
 			process_path(newpathname, extregexpptr, recursiondepth+1);
 		}
 	}
