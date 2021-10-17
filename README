@@ -1,26 +1,28 @@
 Sun Oct  7 13:54:25 AEDT 2018
 James S. Crook
 
-For further information on findfiles: https://yosj.com.au/staff/c_programs/findfiles/findfiles.html
+For further information on findfiles: https://yosj.com.au/staff/c_programs/findfiles
 
 To compile findfiles:
-	For Linux and Cygwin, this should compile:
-    gcc -o findfiles findfiles.c
+    For Linux and Cygwin, this should compile:
+	gcc -o findfiles findfiles.c
 	This should clean compile.
 
-	For more error checking:
-		Fedora & Ubuntu:
-		gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
-		This should clean compile.
+    For more error checking:
+	Fedora & Ubuntu:
+	gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+	This should clean compile.
 
-		SLES:
-		gcc -O2 -Wall  -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c -lrt
-		warning: string length ‘NNNN’ is greater than the length ‘509’ ISO C90 compilers are required to support
+	SLES 15.2:
+	gcc -O2 -Wall -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+	This should clean compile.
+	Earlier versions of SLES:
+	gcc -O2 -Wall -pedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c -lrt
 
-		OpenSuse:
-		gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
-		warning: string length ‘NNNN’ is greater than the length ‘509’ ISO C90 compilers are required to support
+	OpenSuse:
+	gcc -O2 -Wall -Wpedantic -Wextra -Wshadow -Wpointer-arith -Wcast-qual -o findfiles findfiles.c
+	warning: string length ‘NNNN’ is greater than the length ‘509’ ISO C90 compilers are required to support
 
-	For AIX:
-		gcc -maix64 -o findfiles findfiles.c
-		This should clean compile.
+    For AIX:
+	gcc -maix64 -o findfiles findfiles.c
+	This should clean compile.

@@ -62,25 +62,25 @@ function create_ts_files_HMSns {
 
     HOUR=$BEGHOUR
     while [ $HOUR -le $ENDHOUR ]; do
-		MINUTE=$BEGMINUTE
-		while [ $MINUTE -le $ENDMINUTE ]; do
-			SECOND=$BEGSECOND
-			while [ $SECOND -le $ENDSECOND ]; do
-				NS=$BEGNS
-				while [ $NS -le $ENDNS ]; do
-					TIME=$(printf "%02d:%02d:%02d.%09d" $HOUR $MINUTE $SECOND $NS)
-					# echo "DATE=$DATE, TIME=$TIME"
-					TOUCHDATE="${DATE} ${TIME}"
-					 FILENAME="${DATE}_${TIME}"
-					CMD="touch -d '$TOUCHDATE' $TESTDIR/$FILENAME"
-					eval "$CMD"
-					NS=$((NS+INCNS))
-				done
-				SECOND=$((SECOND+INCSECOND))
-			done
-			MINUTE=$((MINUTE+INCMINUTE))
+	MINUTE=$BEGMINUTE
+	while [ $MINUTE -le $ENDMINUTE ]; do
+	    SECOND=$BEGSECOND
+	    while [ $SECOND -le $ENDSECOND ]; do
+		NS=$BEGNS
+		while [ $NS -le $ENDNS ]; do
+		    TIME=$(printf "%02d:%02d:%02d.%09d" $HOUR $MINUTE $SECOND $NS)
+		    # echo "DATE=$DATE, TIME=$TIME"
+		    TOUCHDATE="${DATE} ${TIME}"
+		     FILENAME="${DATE}_${TIME}"
+		    CMD="touch -d '$TOUCHDATE' $TESTDIR/$FILENAME"
+		    eval "$CMD"
+		    NS=$((NS+INCNS))
 		done
-		HOUR=$((HOUR+INCHOUR))
+		SECOND=$((SECOND+INCSECOND))
+	    done
+	    MINUTE=$((MINUTE+INCMINUTE))
+	done
+	HOUR=$((HOUR+INCHOUR))
     done
 }
 
@@ -97,18 +97,18 @@ function create_ts_files_YMDHMSns {
     rm -f $TESTDIR/*
     YEAR=$BEGYEAR
     while [ $YEAR -le $ENDYEAR ]; do
-		MONTH=$BEGMONTH
-		while [ $MONTH -le $ENDMONTH ]; do
-			DAY=$BEGDAY
-			while [ $DAY -le $ENDDAY ]; do
-				DATE=$(printf "%04d-%02d-%02d" $YEAR $MONTH $DAY)
-				create_ts_files_HMSns	${10} ${11} ${12}  ${13} ${14} ${15} \
-										${16} ${17} ${18}  ${19} ${20} ${21}
-				DAY=$((DAY+INCDAY))
-			done
-			MONTH=$((MONTH+INCMONTH))
-		done
-		YEAR=$((YEAR+INCYEAR))
+	MONTH=$BEGMONTH
+	while [ $MONTH -le $ENDMONTH ]; do
+	    DAY=$BEGDAY
+	    while [ $DAY -le $ENDDAY ]; do
+		DATE=$(printf "%04d-%02d-%02d" $YEAR $MONTH $DAY)
+		create_ts_files_HMSns	${10} ${11} ${12}  ${13} ${14} ${15} \
+					${16} ${17} ${18}  ${19} ${20} ${21}
+		DAY=$((DAY+INCDAY))
+	    done
+	    MONTH=$((MONTH+INCMONTH))
+	done
+	YEAR=$((YEAR+INCYEAR))
     done
 }
 
@@ -123,21 +123,22 @@ create_ts_files_YMDHMSns 1970 1970 1   1 1 1   1 1 1 \
 (
     SETSTARTTIME="1970-01-01 00:16:41"; FRACSECS=".3"
     export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
+    export FF_INFODATETIMEFORMAT="%c %Z"
     for FINDFILESARGS in \
-		"-vvvvfn             ." \
-		" -vvvfn             ." \
-		"  -vvfn -m  900.60s ." \
-		"  -vvfn -m -900.60s ." \
-		"  -vvfn -m  900.60s ." \
-		"  -vvfn -m -900.60s ." \
-		"  -vvfn -m   15.01m ." \
-		"  -vvfn -m  -15.01m ." \
-		"  -vvfn -m   15.01m ." \
-		"  -vvfn -m  -15.01m ." \
+	"-vvvvfn             ." \
+	" -vvvfn             ." \
+	"  -vvfn -m  900.60s ." \
+	"  -vvfn -m -900.60s ." \
+	"  -vvfn -m  900.60s ." \
+	"  -vvfn -m -900.60s ." \
+	"  -vvfn -m   15.01m ." \
+	"  -vvfn -m  -15.01m ." \
+	"  -vvfn -m   15.01m ." \
+	"  -vvfn -m  -15.01m ." \
 
     do
-		echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-		eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	eval $FINDFILES $FINDFILESARGS 2>&1
     done
 )
 
@@ -152,46 +153,51 @@ create_ts_files_YMDHMSns 2018 2018 1   1 1 1   9 11 1 \
 (
     SETSTARTTIME="2018-01-30 00:00:00"; FRACSECS=".0"
     export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
+    export FF_INFODATETIMEFORMAT="%c %Z"
     REFFILE="2018-01-10_00:00:00.750000000"
     for FINDFILESARGS in \
-		"-vvvvf          ." \
-		"-vvvvfn         ." \
-		"  -vvf  -m -20D ." \
-		"  -vvfn -m -20D ." \
-		"  -vvf  -a -20D ." \
-		"  -vvfn -a -20D ." \
-		"  -vvf  -m  20D ." \
-		"  -vvfn -m  20D ." \
-		"  -vvf  -a  20D ." \
-		"  -vvfn -a  20D ." \
-		"  -vvf  -M -$REFFILE ." \
-		"  -vvfn -M -$REFFILE ." \
-		"  -vvf  -A -$REFFILE ." \
-		"  -vvfn -A -$REFFILE ." \
-		"  -vvf  -M  $REFFILE ." \
-		"  -vvfn -M  $REFFILE ." \
-		"  -vvf  -A  $REFFILE ." \
-		"  -vvfn -A  $REFFILE ." \
-		"  -vvfn -m  1728000.25s ." \
-		"  -vvfn -m  20.25D ." \
+	"-vvvvf          ." \
+	"-vvvvfn         ." \
+	"  -vvf  -m -20D ." \
+	"  -vvfn -m -20D ." \
+	"  -vvf  -a -20D ." \
+	"  -vvfn -a -20D ." \
+	"  -vvf  -m  20D ." \
+	"  -vvfn -m  20D ." \
+	"  -vvf  -a  20D ." \
+	"  -vvfn -a  20D ." \
+	"  -vvf  -M -$REFFILE ." \
+	"  -vvfn -M -$REFFILE ." \
+	"  -vvf  -A -$REFFILE ." \
+	"  -vvfn -A -$REFFILE ." \
+	"  -vvf  -M  $REFFILE ." \
+	"  -vvfn -M  $REFFILE ." \
+	"  -vvf  -A  $REFFILE ." \
+	"  -vvfn -A  $REFFILE ." \
+	"  -vvfn -m  1728000.25s ." \
+	"  -vvfn -m  20.25D ." \
 
     do
-		echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-		eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	eval $FINDFILES $FINDFILESARGS 2>&1
     done
 
-	############ Check different locales ############
-	FINDFILESARGS="-vvf -m 20.0025D ."
-    for LANG in \
-		en_US.UTF-8 \
-		es_ES.UTF-8 \
-		de_DE.UTF-8 \
-		fr_FR.UTF-8 \
+    ############ Check different locales ############
 
-    do
-		echo "========== export LANG=$LANG; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-		eval export LANG=$LANG; $FINDFILES $FINDFILESARGS 2>&1
+    # With FF_INFODATETIMEFORMAT set
+    FINDFILESARGS="-vvf -m 20.0025D ."
+    for LANG in fr_FR.UTF-8 es_ES.UTF-8; do
+	echo "========== export LANG=$LANG; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	eval export LANG=$LANG; $FINDFILES $FINDFILESARGS 2>&1
     done
+
+    # Without FF_INFODATETIMEFORMAT set
+    unset FF_INFODATETIMEFORMAT
+    for LANG in en_US.UTF-8 de_DE.UTF-8; do
+	echo "========== export LANG=$LANG; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	eval export LANG=$LANG; $FINDFILES $FINDFILESARGS 2>&1
+    done
+
 )
 
 ################################################################################
@@ -205,20 +211,21 @@ create_ts_files_YMDHMSns 2017 2017 1   1 12 1   1 1 1 \
 (
     SETSTARTTIME="2018-01-02 00:00:00"; FRACSECS=".5"
     export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
+    export FF_INFODATETIMEFORMAT="%c %Z"
     for TIMEZONE in \
-		UTC \
-		Australia/Sydney \
-		America/Los_Angeles \
+	UTC \
+	Australia/Sydney \
+	America/Los_Angeles \
+
+do
+	for FINDFILESARGS in \
+	    "-vvf  -m -6M . -a 2Y ." \
+	    "-vvfn -m -6M . -a 2Y ." \
 
 	do
-		for FINDFILESARGS in \
-			"-vvf  -m -6M . -a 2Y ." \
-			"-vvfn -m -6M . -a 2Y ." \
-
-		do
-			echo "========== export TZ=$TIMEZONE; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-			eval export TZ=$TIMEZONE; $FINDFILES $FINDFILESARGS 2>&1
-		done
+	    echo "========== export TZ=$TIMEZONE; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	    eval export TZ=$TIMEZONE; $FINDFILES $FINDFILESARGS 2>&1
+	done
 	done
 )
 
@@ -231,15 +238,16 @@ create_ts_files_YMDHMSns 2017 2017 1   1 12 1   1 1 1 \
     export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
     export FF_DATETIMEFORMAT="%04d-%02d-%02dT%02d:%02d:%02dZ"
     export FF_AGEFORMAT="%7ldDays;%02ldh,%02ldm,%02lds"
+    export FF_INFODATETIMEFORMAT="%c %Z"
     for FINDFILESARGS in \
-		"-vvvvf  -m -6M ." \
-		"-vvvvfn -m -6M ." \
-		"  -vvf  -m -6M ." \
-		"  -vvfn -m -6M ." \
+	"-vvvvf  -m -6M ." \
+	"-vvvvfn -m -6M ." \
+	"  -vvf  -m -6M ." \
+	"  -vvfn -m -6M ." \
 
     do
-		echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-		eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
+	eval $FINDFILES $FINDFILESARGS 2>&1
     done
 )
 
@@ -247,3 +255,7 @@ create_ts_files_YMDHMSns 2017 2017 1   1 12 1   1 1 1 \
 # Cleanup and exit
 ################################################################################
 rm -rf $TESTDIR
+
+    # JC
+    export FF_INFODATETIMEFORMAT="%c %Z"
+    # JC

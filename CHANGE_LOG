@@ -1,4 +1,32 @@
 =============================================================================================
+v2.2.0 Sun 17 Oct 2021 17:37:53 AEDT
+
+1. In addition to the original 'age' target times relative to the start time (eg, -3D),
+   absolute 'timestamp' values can now be specified (eg, YYYYMMDD_HHMMSS[.fraction_of_a_second])
+   on the command line - for both -a and -m. Environment variable FF_TIMESTAMPFORMAT (default
+   '%Y%m%d_%H%M%S' can be used to configure different accepted timestamp formats. If the last
+   two characters of the accepted timestamp format are '%S' (seconds), command line timestamps
+   may specify fractions of a second (eg, 20201231_010203.25)
+
+2. As a result, changed long argments for (-a) --acc-age to --acc-info and for
+   (-m) --mod-age to --mod-info.
+
+3. Because timezones have mysteriously disappeared from the output for some locales,
+   the date/time output format can now be configured with new environment variable
+   FF_INFODATETIMEFORMAT.
+
+4. Reformatted the info "i: ..." FF_... environment variable output to be prettier.
+
+5. Removed the docs directory containing html files describing findfiles in more detail.
+   See: https://yosj.com.au/staff/c_programs/findfiles
+
+=============================================================================================
+v2.1.2 - Fri Oct 11 17:54:14 AEST 2019
+
+Got sick of the source looking different in vi(m) than cat/less. Changed the indentation  back
+to a tabstop of 8 characters. The only differences are indenting and other whitespace.
+
+=============================================================================================
 v2.1.1 - Fri May  3 09:55:38 AEST 2019
 
 1. Change the object table size of initial allocation (4k->8k) and then doubling that size
