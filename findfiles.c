@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"2.2.0"
+#define PROGRAMVERSIONSTRING	"2.2.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -101,7 +101,8 @@ last access and/or last modification times are both rare and uninteresting.
 #define MINUTESPERDAY		(MINUTESPERHOUR*HOURSPERDAY)
 #define NANOSECONDSPERSECOND	1000000000
 
-#define MAXRECURSIONDEPTH	10000
+#define MAXRECURSIONDEPTH	 10000		/* int value - should match the... */
+#define MAXRECURSIONDEPTHSTR	"10000"		/* text value */
 #define MAXDATESTRLENGTH	64
 #define MAXPATHLENGTH		2048
 #define INITMAXNUMOBJS		(  8*1024)	/* Allocate the object table to hold up to this many entries. */
@@ -119,60 +120,6 @@ last access and/or last modification times are both rare and uninteresting.
 #define SECONDSFORMATSTR	"%S"
 
 #define GETOPTSTR		"+dforia:m:p:t:A:D:M:hnsuRv"
-#define USAGEMESSAGE \
-"usage (version %s):\n\
-%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n\
- Some OPTIONs require arguments. These are:\n\
-  age    : a +/- relative age value followed by a time unit\n\
-  ERE    : a POSIX-style Extended Regular Expression (pattern)\n\
-  path   : the pathname of a reference object (file, directory, etc.)\n\
-  target : the pathname of an object (file, directory, etc.) to search\n\
- OPTIONs - can be toggled on/off (parsed left to right):\n\
-  -d|--directories : directories   (default off)\n\
-  -f|--files       : regular files (default off)\n\
-  -o|--others      : other files   (default off)\n\
-  -r|--recursive   : recursive - traverse file trees (default off)\n\
-  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n\
- OPTIONs requiring an argument (parsed left to right):\n\
-  -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default), or\n\
-  -a|--acc-info [-|+]access_time       : - for newer/=, [+] for older/= times (no default)\n\
-  -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time), or\n\
-  -m|--mod-info [-|+]modification_time : - for newer/=, [+] for older/= times (no default\n\
-  -p|--pattern ERE                     : POSIX-style Extended Regular Expression (pattern) (default '.*')\n\
-  -t|--target target_path              : target path (no default)\n\
-  -A|--acc-ref [-|+]acc_ref_path       : - for newer, [+] for older ages (no default)\n\
-  -D|--depth maximum_recursion_depth   : maximum recursion traversal depth/level (default %d)\n\
-  -M|--mod-ref [-|+]mod_ref_path       : - for newer, [+] for older ages (no default)\n\
- Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n\
-  -h|--help        : display this help message\n\
-  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n\
-  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n\
-  -u|--units       : display units: s for seconds, B for Bytes (default off)\n\
-  -R|--reverse     : Reverse the (time) order of the output (default off)\n\
- Verbosity: (May be specified more than once for additional information.)\n\
-  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n\
- Time units:\n\
-  Y: Years    M: Months     W: Weeks      D: Days\n\
-  h: hours    m: minutes    s: seconds\n\
-  Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values.\n\
- Examples of command line arguments (parsed left to right):\n\
-  -f /tmp                      # files in /tmp of any age, including future dates!\n\
-  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns\n\
-  -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n\
-  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n\
-  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n\
-  -dRp pat junk                # directories named junk/*pat* - reverse sort\n\
-  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was\n\
-  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but\n\
-                               # NOT files) in /var accessed >= 1h, verbose output\n\
-  -vf -m -20201231_010203 /tmp # files in /tmp modified after 20201231_010203\n\
-\n\
-findfiles Copyright (C) 2016-2021 James S. Crook\n\
-This program comes with ABSOLUTELY NO WARRANTY.\n\
-This is free software, and you are welcome to redistribute it under certain conditions.\n\
-This program is licensed under the terms of the GNU General Public License as published\n\
-by the Free Software Foundation, either version 3 of the License, or (at your option) any\n\
-later version (see <http://www.gnu.org/licenses/>).\n"
 
 typedef struct {
     char	*name;
@@ -236,7 +183,77 @@ void process_directory(char *, regex_t *, int);
 Display the usage (help) message.
 *******************************************************************************/
 void display_usage_message(char *progname) {
-    printf(USAGEMESSAGE, PROGRAMVERSIONSTRING, progname, MAXRECURSIONDEPTH);
+    size_t	lineidx;
+
+    typedef struct {
+	char	*formatstr;
+	char	*strvarptr;
+    } Usagelineobject;
+
+    Usagelineobject usagelinetable[] = {
+	{"usage (version %s):",											PROGRAMVERSIONSTRING},
+	{"%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...",				progname},
+	{" Some OPTIONs require arguments. These are:",									NULL},
+	{"  age    : a +/- relative age value followed by a time unit",							NULL},
+	{"  ERE    : a POSIX-style Extended Regular Expression (pattern)",						NULL},
+	{"  path   : the pathname of a reference object (file, directory, etc.)",					NULL},
+	{"  target : the pathname of an object (file, directory, etc.) to search",					NULL},
+	{" OPTIONs - can be toggled on/off (parsed left to right):",							NULL},
+	{"  -d|--directories : directories   (default off)",								NULL},
+	{"  -f|--files       : regular files (default off)",								NULL},
+	{"  -o|--others      : other files   (default off)",								NULL},
+	{"  -r|--recursive   : recursive - traverse file trees (default off)",						NULL},
+	{"  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)",			NULL},
+	{" OPTIONs requiring an argument (parsed left to right):",							NULL},
+	{"  -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default), or",		NULL},
+	{"    |--acc-info [-|+]access_time       : - for newer/=, [+] for older/= times (no default)",			NULL},
+	{"  -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time), or",	NULL},
+	{"    |--mod-info [-|+]modification_time : - for newer/=, [+] for older/= times (no default",			NULL},
+	{"  -p|--pattern ERE                     : POSIX-style Extended Regular Expression (pattern) (default '.*')",	NULL},
+	{"  -t|--target target_path              : target path (no default)",						NULL},
+	{"  -A|--acc-ref [-|+]acc_ref_path       : - for newer, [+] for older ages (no default)",			NULL},
+	{"  -D|--depth maximum_recursion_depth   : maximum recursion traversal depth/level (default %s)",	MAXRECURSIONDEPTHSTR},
+	{"  -M|--mod-ref [-|+]mod_ref_path       : - for newer, [+] for older ages (no default)",			NULL},
+	{" Flags - are 'global' options (and can NOT be toggled by setting multiple times):",				NULL},
+	{"  -h|--help        : display this help message",								NULL},
+	{"  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns",		NULL},
+	{"  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)",					NULL},
+	{"  -u|--units       : display units: s for seconds, B for Bytes (default off)",				NULL},
+	{"  -R|--reverse     : Reverse the (time) order of the output (default off)",					NULL},
+	{" Verbosity: (May be specified more than once for additional information.)",					NULL},
+	{"  -v|--verbose : also display modification time, age & size(B) (default 0[off])",				NULL},
+	{" Time units:",												NULL},
+	{"  Y: Years    M: Months     W: Weeks      D: Days",								NULL},
+	{"  h: hours    m: minutes    s: seconds",									NULL},
+	{"  Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values.",		NULL},
+	{" Examples of command line arguments (parsed left to right):",							NULL},
+	{"  -f /tmp                      # files in /tmp of any age, including future dates!",				NULL},
+	{"  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns",			NULL},
+	{"  -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago",			NULL},
+	{"  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*",					NULL},
+	{"  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago",				NULL},
+	{"  -dRp pat junk                # directories named junk/*pat* - reverse sort",				NULL},
+	{"  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was",			NULL},
+	{"  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but",			NULL},
+	{"                               # NOT files) in /var accessed >= 1h, verbose output",				NULL},
+	{"  -vf -m -20201231_010203 /tmp # files in /tmp modified after 20201231_010203",				NULL},
+	{"",														NULL},
+	{"findfiles Copyright (C) 2016-2021 James S. Crook",								NULL},
+	{"This program comes with ABSOLUTELY NO WARRANTY.",								NULL},
+	{"This is free software, and you are welcome to redistribute it under certain conditions.",			NULL},
+	{"This program is licensed under the terms of the GNU General Public License as published",			NULL},
+	{"by the Free Software Foundation, either version 3 of the License, or (at your option) any",			NULL},
+	{"later version (see <http://www.gnu.org/licenses/>).",								NULL},
+    };
+
+    for (lineidx=0; lineidx<sizeof(usagelinetable)/sizeof(Usagelineobject); lineidx++) {
+	if (usagelinetable[lineidx].strvarptr == NULL) {
+	    printf("%s\n", usagelinetable[lineidx].formatstr);
+	} else {
+	    printf(usagelinetable[lineidx].formatstr, usagelinetable[lineidx].strvarptr);
+	    printf("\n");
+	}
+    }
 }
 
 

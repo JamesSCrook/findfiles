@@ -1,4 +1,11 @@
 =============================================================================================
+v2.2.1 Tue 19 Oct 2021 15:52:32 AEDT
+
+display_usage_messge used to use one very long string. This caused gcc warning messages - 
+most commonly observed on OpenSuSE and SLES. Now this function uses a table of text messages.
+There is no change in functionality from v2.2.0.
+
+=============================================================================================
 v2.2.0 Sun 17 Oct 2021 17:37:53 AEDT
 
 1. In addition to the original 'age' target times relative to the start time (eg, -3D),
