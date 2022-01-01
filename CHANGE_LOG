@@ -1,4 +1,47 @@
 =============================================================================================
+v 3.0.0 Sun 02 Jan 2022 07:38:47 AEDT
+
+Changes that are _NOT_ backward compatible:
+
+1. Reversed the way newer-than/older-than works with reference objects. This flips how both
+   the '-A' and '-M' command line arguments work for reference objectes '-objectpath' and
+   'objectpath'. This is to be consistent with (new) other absolute reference target time
+   (eg, '-a'/'-m' -YYYYMMDD_HHMMSS[.ns]'). Note: findfiles worked this way originally, but
+   it was changed a long time ago so -A/-M and -a/-m followed by -reference (with a minus
+   sign) both selected objects newer (accessed or modified AFTER) reference. Now it works
+   like this:
+    -m   -3D: display objects modified LESS THAN (or exactly) 3 days ago
+    -m [+]3D: display objects modified MORE THAN (or exactly) 3 days ago
+    -m   -20101231_000000: display objects modified BEFORE (or exactly) this time
+    -m [+]20101231_000000: display objects modified AFTER  (or exactly) this time
+    -M   -reference: display objects modified BEFORE the reference object
+    -M [+]reference: display objects modified AFTER  the reference object
+   So wherever -A/-M were used, '-reference' must be changed to '[+]reference', and vice-versa.
+
+2. Changed --acc-age(-a) to --acc-info(-a) and --mod-age(-m) to --mod-info(-m).
+
+3. Changed the way symbolic links are handled:
+    a) Treat [.../]symlink vs [.../]symlink/ like (most) other *nix commands
+       Note: this breaks backward compatibility.
+    b) Added the (-L/--symlinks) option to always follow them
+
+4. Changed the format that FF_STARTTIME requires. Before this release it was s[.ns] since the
+   Epoch using UTC. Now it requires YYYYMMDD_HHMMSS[.ns], and it respects the timezone (eg,
+   TZ). Note: this breaks backward compatibility, but this feature is only meant for testing.
+
+Changes that ARE backward compatible:
+
+A. Before this version, access (-a) and modification (-m) times were only set relatively (to
+   the starttime), eg, '10D' or '-30s'. These command line aguments must end in one of the
+   legal time unit characters. Now -a and -m times can be set absolutely as well, eg,
+   '20220630_121500[.ns]'. These must end in a digit.
+
+B. Allow all of the FF_* environment variables to be set on the command line with
+   -V FF_name=value.
+
+C. Changed the usage message to use a printf call for each line (to avoid compiler warnings).
+
+=============================================================================================
 v2.2.1 Tue 19 Oct 2021 15:52:32 AEDT
 
 display_usage_messge used to use one very long string. This caused gcc warning messages - 

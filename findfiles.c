@@ -2,7 +2,7 @@
 ********************************************************************************
 
 findfiles: find files based on various selection criteria
-Copyright (C) 2016-2021 James S. Crook
+Copyright (C) 2016-2022 James S. Crook
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"2.2.1"
+#define PROGRAMVERSIONSTRING	"3.0.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -100,9 +100,9 @@ last access and/or last modification times are both rare and uninteresting.
 #define SECONDSPERWEEK		(SECONDSPERMINUTE*MINUTESPERHOUR*HOURSPERDAY*7)
 #define MINUTESPERDAY		(MINUTESPERHOUR*HOURSPERDAY)
 #define NANOSECONDSPERSECOND	1000000000
+#define NANOSECONDSSTR		"1000000000"
 
-#define MAXRECURSIONDEPTH	 10000		/* int value - should match the... */
-#define MAXRECURSIONDEPTHSTR	"10000"		/* text value */
+#define MAXRECURSIONDEPTH	 10000
 #define MAXDATESTRLENGTH	64
 #define MAXPATHLENGTH		2048
 #define INITMAXNUMOBJS		(  8*1024)	/* Allocate the object table to hold up to this many entries. */
@@ -110,16 +110,21 @@ last access and/or last modification times are both rare and uninteresting.
 #define MAXNUMOBJSMLTLIM	(512*1024)	/* up to this number. After that, ... */
 #define MAXNUMOBJSINCVAL	( 64*1024)	/* increment the size by this value. */
 #define PATHDELIMITERCHAR	'/'
-#define RELMODAGECHAR		'm'
-#define REFMODAGECHAR		'M'
+#define MODTIMEINFOCHAR		'm'
+#define REFMODTIMECHAR		'M'
 #define SECONDSUNITCHAR		's'
 #define BYTESUNITCHAR		'B'
+#define DECIMALSEPARATORCHAR	'.'
+#define POSITIVESIGNCHAR	'+'
+#define NEGATIVESIGNCHAR	'-'
 #define DEFAULTAGE		0
 #define DEFAULTERE		".*"
-#define NOW			"Now"
+#define NOWSTR			"Now"
 #define SECONDSFORMATSTR	"%S"
+#define FF_STARTTIMESTR		"FF_STARTTIME"
+#define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforia:m:p:t:A:D:M:hnsuRv"
+#define GETOPTSTR		"+dforia:m:p:t:A:D:M:V:hnsuRLv"
 
 typedef struct {
     char	*name;
@@ -134,11 +139,11 @@ char	*infodatetimeformatstr;
 char	*timestampformatstr;
 
 Envvar envvartable[] = {
-    { "FF_STARTTIME",		NOW,				&starttimestr },
-    { "FF_DATETIMEFORMAT",	"%04d%02d%02d_%02d%02d%02d",	&datetimeformatstr },
     { "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",	&ageformatstr },
-    { "FF_INFODATETIMEFORMAT",	"%c",				&infodatetimeformatstr },
-    { "FF_TIMESTAMPFORMAT",	"%Y%m%d_%H%M%S",		&timestampformatstr },
+    { "FF_DATETIMEFORMAT",	"%04d%02d%02d_%02d%02d%02d",	&datetimeformatstr },
+    { "FF_INFODATETIMEFORMAT",	"%a %b %d %H:%M:%S %Y %Z %z",	&infodatetimeformatstr },
+    { FF_STARTTIMESTR,		NOWSTR,				&starttimestr },
+    { "FF_TIMESTAMPFORMAT",	DEFAULTTIMESTAMPFMT,		&timestampformatstr },
 };
 
 typedef struct {	/* each object's name, modification XOR access time & size */
@@ -172,6 +177,7 @@ int	displaysecondsflag	= 0;
 int	displaynsecflag		= 0;
 int	accesstimeflag		= 0;
 int	newerthantargetflag	= 0;
+int	followsymlinksflag	= 0;
 int	sortmultiplier		= 1;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
@@ -183,77 +189,65 @@ void process_directory(char *, regex_t *, int);
 Display the usage (help) message.
 *******************************************************************************/
 void display_usage_message(char *progname) {
-    size_t	lineidx;
-
-    typedef struct {
-	char	*formatstr;
-	char	*strvarptr;
-    } Usagelineobject;
-
-    Usagelineobject usagelinetable[] = {
-	{"usage (version %s):",											PROGRAMVERSIONSTRING},
-	{"%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...",				progname},
-	{" Some OPTIONs require arguments. These are:",									NULL},
-	{"  age    : a +/- relative age value followed by a time unit",							NULL},
-	{"  ERE    : a POSIX-style Extended Regular Expression (pattern)",						NULL},
-	{"  path   : the pathname of a reference object (file, directory, etc.)",					NULL},
-	{"  target : the pathname of an object (file, directory, etc.) to search",					NULL},
-	{" OPTIONs - can be toggled on/off (parsed left to right):",							NULL},
-	{"  -d|--directories : directories   (default off)",								NULL},
-	{"  -f|--files       : regular files (default off)",								NULL},
-	{"  -o|--others      : other files   (default off)",								NULL},
-	{"  -r|--recursive   : recursive - traverse file trees (default off)",						NULL},
-	{"  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)",			NULL},
-	{" OPTIONs requiring an argument (parsed left to right):",							NULL},
-	{"  -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default), or",		NULL},
-	{"    |--acc-info [-|+]access_time       : - for newer/=, [+] for older/= times (no default)",			NULL},
-	{"  -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time), or",	NULL},
-	{"    |--mod-info [-|+]modification_time : - for newer/=, [+] for older/= times (no default",			NULL},
-	{"  -p|--pattern ERE                     : POSIX-style Extended Regular Expression (pattern) (default '.*')",	NULL},
-	{"  -t|--target target_path              : target path (no default)",						NULL},
-	{"  -A|--acc-ref [-|+]acc_ref_path       : - for newer, [+] for older ages (no default)",			NULL},
-	{"  -D|--depth maximum_recursion_depth   : maximum recursion traversal depth/level (default %s)",	MAXRECURSIONDEPTHSTR},
-	{"  -M|--mod-ref [-|+]mod_ref_path       : - for newer, [+] for older ages (no default)",			NULL},
-	{" Flags - are 'global' options (and can NOT be toggled by setting multiple times):",				NULL},
-	{"  -h|--help        : display this help message",								NULL},
-	{"  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns",		NULL},
-	{"  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)",					NULL},
-	{"  -u|--units       : display units: s for seconds, B for Bytes (default off)",				NULL},
-	{"  -R|--reverse     : Reverse the (time) order of the output (default off)",					NULL},
-	{" Verbosity: (May be specified more than once for additional information.)",					NULL},
-	{"  -v|--verbose : also display modification time, age & size(B) (default 0[off])",				NULL},
-	{" Time units:",												NULL},
-	{"  Y: Years    M: Months     W: Weeks      D: Days",								NULL},
-	{"  h: hours    m: minutes    s: seconds",									NULL},
-	{"  Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values.",		NULL},
-	{" Examples of command line arguments (parsed left to right):",							NULL},
-	{"  -f /tmp                      # files in /tmp of any age, including future dates!",				NULL},
-	{"  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns",			NULL},
-	{"  -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago",			NULL},
-	{"  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*",					NULL},
-	{"  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago",				NULL},
-	{"  -dRp pat junk                # directories named junk/*pat* - reverse sort",				NULL},
-	{"  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was",			NULL},
-	{"  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but",			NULL},
-	{"                               # NOT files) in /var accessed >= 1h, verbose output",				NULL},
-	{"  -vf -m -20201231_010203 /tmp # files in /tmp modified after 20201231_010203",				NULL},
-	{"",														NULL},
-	{"findfiles Copyright (C) 2016-2021 James S. Crook",								NULL},
-	{"This program comes with ABSOLUTELY NO WARRANTY.",								NULL},
-	{"This is free software, and you are welcome to redistribute it under certain conditions.",			NULL},
-	{"This program is licensed under the terms of the GNU General Public License as published",			NULL},
-	{"by the Free Software Foundation, either version 3 of the License, or (at your option) any",			NULL},
-	{"later version (see <http://www.gnu.org/licenses/>).",								NULL},
-    };
-
-    for (lineidx=0; lineidx<sizeof(usagelinetable)/sizeof(Usagelineobject); lineidx++) {
-	if (usagelinetable[lineidx].strvarptr == NULL) {
-	    printf("%s\n", usagelinetable[lineidx].formatstr);
-	} else {
-	    printf(usagelinetable[lineidx].formatstr, usagelinetable[lineidx].strvarptr);
-	    printf("\n");
-	}
-    }
+    printf("usage (version %s):\n", PROGRAMVERSIONSTRING);
+    printf("%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n", progname);
+    printf(" Some OPTIONs require arguments - these are:\n");
+    printf("  age    : a relative age value followed by a time unit (eg, '3D')\n");
+    printf("  ERE    : a POSIX-style Extended Regular Expression (pattern)\n");
+    printf("  path   : the pathname of a reference object (file, directory, etc.)\n");
+    printf("  target : the pathname of an object (file, directory, etc.) to search\n");
+    printf("  time   : an absolute date/time stamp value (eg, '20210630_121530.5')\n");
+    printf(" OPTIONs - can be toggled on/off (parsed left to right):\n");
+    printf("  -d|--directories : directories   (default off)\n");
+    printf("  -f|--files       : regular files (default off)\n");
+    printf("  -o|--others      : other files   (default off)\n");
+    printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
+    printf("  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n");
+    printf(" OPTIONs requiring an argument (parsed left to right):\n");
+    printf("  -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n");
+    printf("  -t|--target target_path            : target path (no default)\n");
+    printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
+    printf("  -V|--variable=value                : for FF_<var>=<value>\n");
+    printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
+    printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default)\n");
+    printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time)\n");
+    printf("  Times are absolute; eg, '-20211231_153000' & '20211231_153000' (using locale's timezone)\n");
+    printf("   -a|--acc-info [-|+]access_time       : - for older/=, [+] for newer/= times (no default)\n");
+    printf("   -m|--mod-info [-|+]modification_time : - for older/=, [+] for newer/= times (no default)\n");
+    printf("  Reference times are absolute; eg: '-/etc/hosts' & '/etc/hosts'\n");
+    printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer reference times (no default)\n");
+    printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer reference times (no default)\n");
+    printf(" Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n");
+    printf("  -h|--help        : display this help message\n");
+    printf("  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
+    printf("  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n");
+    printf("  -u|--units       : display units: s for seconds, B for Bytes (default off)\n");
+    printf("  -L|--symlinks    : Follow symbolic links\n");
+    printf("  -R|--reverse     : Reverse the (time) order of the output (default off)\n");
+    printf(" Verbosity: (May be specified more than once for additional information)\n");
+    printf("  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n");
+    printf(" Time units:\n");
+    printf("  Y: Years    M: Months     W: Weeks      D: Days\n");
+    printf("  h: hours    m: minutes    s: seconds\n");
+    printf("  Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values\n");
+    printf(" Examples of command line arguments (parsed left to right):\n");
+    printf("  -f /tmp                      # files in /tmp of any age, including future dates!\n");
+    printf("  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns\n");
+    printf("  -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n");
+    printf("  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n");
+    printf("  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n");
+    printf("  -dRp pat junk                # directories named junk/*pat* - reverse sort\n");
+    printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was\n");
+    printf("  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but\n");
+    printf("                               # NOT files) in /var accessed >= 1h, verbose output\n");
+    printf("  -vf -m -20201231_010203.5 .  # files in . modified at or before 20201231_010203.5\n");
+    printf("\n");
+    printf("findfiles Copyright (C) 2016-2022 James S. Crook\n");
+    printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
+    printf("This is free software, and you are welcome to redistribute it under certain conditions.\n");
+    printf("This program is licensed under the terms of the GNU General Public License as published\n");
+    printf("by the Free Software Foundation, either version 3 of the License, or (at your option) any\n");
+    printf("later version (see <http://www.gnu.org/licenses/>).\n");
 }
 
 
@@ -262,7 +256,7 @@ Process a (file system) object - eg, a regular file, directory, symbolic
 link, fifo, special file, etc. If the object's attributes satisfy the command
 line arguments (i.e., the name matches the extended regular expression (pattern),
 the access xor modification time, etc. then, this object is appended to the
-objectinfotable. If objectinfotable is full, its size is dynamically doubled.
+objectinfotable. If objectinfotable is full, its size is dynamically increased.
 *******************************************************************************/
 void process_object(char *pathname, regex_t *extregexpptr) {
     struct	stat statinfo;
@@ -328,9 +322,18 @@ void process_object(char *pathname, regex_t *extregexpptr) {
 
 
 /*******************************************************************************
-Strip any trailing '/' characters - because of a bug in some versions of lstat.
-lstat("symlinktodir",  &buf) returns that symlink is a symbolic link - correct!
-lstat("symlinktodir/", &buf) returns that symlink is a directory!!! - INcorrect!
+Strip any trailing '/' character(s) from pathname. This function is called when
+processing a directory or a symbolic link to a directory at recursion level 0
+(so, specified on the command line). It seems that many *NIX commands process
+'dirsymlink' and 'dirsymlink/' differently. When processing symbolic links to
+directories, there are two cases:
+1. When -L is not specified (the default): findfiles reproduces the behavior of
+   find (et al). A command line symbolic link target WITH a trailing slash ('/')
+   (eg, 'dirsymlink/') is followed, but when such a target has no trailing
+   slash (eg, 'dirsymlink') the symbolic link is NOT followed.
+2. When -L is specified: findfiles always follows all symbolic links.
+In the words of one of my old project managers at the Cupertino HP UNIX lab in
+1987, "standard is better than better". I still don't like it, though.
 *******************************************************************************/
 void trim_trailing_slashes(char *pathname) {
     char	*chptr;
@@ -347,14 +350,10 @@ void trim_trailing_slashes(char *pathname) {
 
 
 /*******************************************************************************
-Process a (file system) pathname (a file, directory or "other").
+Process a (file system) pathname (a file, directory or "other" object).
 *******************************************************************************/
 void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
     struct stat	statinfo;
-
-    if (recursiondepth == 0) {
-	trim_trailing_slashes(pathname);
-    }
 
     if (!regularfileflag && !directoryflag && !otherobjectflag) {
 	fprintf(stderr, "No output target types requested for '%s'!\n",pathname);
@@ -372,7 +371,10 @@ void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
 	if (regularfileflag) {
 	    process_object(pathname, extregexpptr);
 	}
-    } else if (S_ISDIR(statinfo.st_mode)) {
+    } else if (S_ISDIR(statinfo.st_mode) || (S_ISLNK(statinfo.st_mode) && followsymlinksflag)) {
+	if (recursiondepth == 0) {
+	   trim_trailing_slashes(pathname);
+	}
 	if (directoryflag) {
 	    process_object(pathname, extregexpptr);
 	}
@@ -425,8 +427,8 @@ void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth
 
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by time (with qsort). Sort is by
-seconds, then nanoseconds, then filename.
+Comparison function for sorting objectinfotable by time (with qsort). The sort
+order is: seconds, then nanoseconds, then filename.
 *******************************************************************************/
 int compare_object_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
@@ -446,10 +448,9 @@ int compare_object_info(const void *firstptr, const void *secondptr) {
 
 /*******************************************************************************
 Sort objectinfotable by time, and display the object's information - optionally,
-the timestamp and age, and (always) the name.
-Due to storing times in 2 variables (*_s and *_ns), it is necessary to add 1s to
-the objectage_ns value and subtract 1s from the objectage_s value whenever
-starttime_ns < the_object's_age_in_ns.
+the timestamp and age, and (always) the name.  Due to storing times in two
+variables (*_s and *_ns), it is necessary to add 1s to the objectage_ns value and
+subtract 1s from the objectage_s value whenever starttime_ns < the_object's_age_in_ns.
 *******************************************************************************/
 void list_objects() {
     struct tm	*localtimeinfoptr;
@@ -517,7 +518,7 @@ void list_objects() {
 		/* if objectage_s is negative (future timestamp), display a - sign */
 		if (negativeageflag) {
 		    if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
-			*chptr = '-'; /* %07ld : OK for 999999 days - until the year 4707 */
+			*chptr = NEGATIVESIGNCHAR; /* %07ld : OK for 999999 days - until the year 4707 */
 		    } else {
 			fprintf(stderr, "Error: Insuficient 'days' field width in '%s'\n", ageformatstr);
 			exit(1);
@@ -550,7 +551,7 @@ void check_integer(char *relativeagestr) {
     char	*chptr;
 
     for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
-	if (!isdigit(*chptr) && *chptr != '-' && *chptr != '+' ) {
+	if (!isdigit(*chptr) && *chptr != NEGATIVESIGNCHAR && *chptr != POSITIVESIGNCHAR ) {
 	    fprintf(stderr, "Warning: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
 	}
     }
@@ -558,114 +559,156 @@ void check_integer(char *relativeagestr) {
 
 
 /*******************************************************************************
-Adjust the relative age of targettime. Parse the relativeagestr argument (a
-string representing floating point number) into integer and (optional) fraction
-parts. Update the breakdown time structure (brkdwntimeptr, see below) by the
-calculated integer number of seconds, and return the calculated number of ns.
+Convert a (hopefully numeric) string to the equivalent number of nanoseconds (ns).
+Eg "123" to 123000000, "000123" to 123000 and "000000123" to 123.
 *******************************************************************************/
-time_t adjust_relative_age(char *relativeagestr, int *timeunitptr, long secsperunit) {
-    double	decimal_s, fraction_s;
+int convert_string_to_ns(char *fractionstr) {
+    char	nanosecondsstr[] = NANOSECONDSSTR;
+    char	*fromchptr = fractionstr, *tochptr = nanosecondsstr+1;
 
-    decimal_s = atof(relativeagestr) * secsperunit;
-    fraction_s = decimal_s - (long)decimal_s;
-    *timeunitptr -= (int)decimal_s;
-    return (time_t)(fraction_s * NANOSECONDSPERSECOND);
+    while (*fromchptr && *tochptr) {
+	if (isdigit(*fromchptr)) {
+	    *tochptr++ = *fromchptr++;
+	} else {
+	    fprintf(stderr, "Illegal character ('%c') in time fraction string '%s'\n", *fromchptr, fractionstr);
+	    exit(1);
+	}
+    }
+    return atoi(nanosecondsstr) - NANOSECONDSPERSECOND;
 }
 
 
 /*******************************************************************************
+Adjust the relative age of targettime when called with units of seconds. The
+reason for not using adjust_relative_age (below) is because when that function
+is called with a large integer (s), the fraction (ns) is sometimes rounded.
+See below. This function returns the correct number of nanoseconds.
 *******************************************************************************/
-void set_relative_targettime(char *timeinfostr, struct tm *brkdwntimeptr, char timeunitchar) {
-    time_t	relage_ns = DEFAULTAGE;
+time_t adjust_relative_age_seconds(char *relativeagestr, int *timeunitptr) {
+    char	*decimalchptr, trimmedrelativeagestr[sizeof(NANOSECONDSSTR)-1] = { '\0' };
+    int		trimmedrelativeagestrlen, relativeage_ns = 0;
+
+    *timeunitptr -= atoi(relativeagestr);	/* relativeage_s: integer */
+    if ((decimalchptr=strchr(relativeagestr, DECIMALSEPARATORCHAR)) != NULL) { /* fraction */
+	/* copy only up to 9 chars. (trimmedrelativeagestr is initialized to all '\0' chars) */
+	strncpy(trimmedrelativeagestr, decimalchptr+1, sizeof(NANOSECONDSSTR)-2);
+	/* if the last character is 's' (seconds), remove it from trimmedrelativeagestr */
+	trimmedrelativeagestrlen = strlen(trimmedrelativeagestr);
+	if (trimmedrelativeagestr[trimmedrelativeagestrlen-1] == 's') {
+	    trimmedrelativeagestr[trimmedrelativeagestrlen-1] = '\0';
+	}
+    }
+    relativeage_ns = convert_string_to_ns(trimmedrelativeagestr);
+    return relativeage_ns;
+}
+
+
+/*******************************************************************************
+Adjust the relative age of targettime. Parse the relativeagestr argument (a
+string representing floating point number) into integer and (optional) fraction
+parts. Update the breakdown time structure (timeinfoptr, see below) by the
+calculated integer number of seconds, and return the calculated number of ns.
+*******************************************************************************/
+time_t adjust_relative_age(char *relativeagestr, int *timeunitptr, long secsperunit) {
+    double	relativeage_s, relativeage_ns;
+
+    relativeage_s = atof(relativeagestr) * secsperunit;
+    relativeage_ns = relativeage_s - (long)relativeage_s;
+    *timeunitptr -= (int)relativeage_s;
+    return (time_t)(relativeage_ns * NANOSECONDSPERSECOND);
+}
+
+
+/*******************************************************************************
+Set the targettime (_s and _ns) relative to the start time. For example, -m 2D
+for 2 days ago or -a -10m for 10 minutes ago.
+*******************************************************************************/
+void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char timeunitchar) {
+    time_t	relativeage_ns = DEFAULTAGE;
 
     switch (timeunitchar) {		/* set targettime relative to now */
-	case 's': relage_ns = adjust_relative_age(timeinfostr, &(brkdwntimeptr->tm_sec), 1);
+	case 's': relativeage_ns = adjust_relative_age_seconds(timeinfostr, &(timeinfoptr->tm_sec));
 	    break;
-	case 'm': relage_ns = adjust_relative_age(timeinfostr, &(brkdwntimeptr->tm_sec), SECONDSPERMINUTE);
+	case 'm': relativeage_ns = adjust_relative_age(timeinfostr, &(timeinfoptr->tm_sec), SECONDSPERMINUTE);
 	    break;
-	case 'h': relage_ns = adjust_relative_age(timeinfostr, &(brkdwntimeptr->tm_sec), SECONDSPERHOUR);
+	case 'h': relativeage_ns = adjust_relative_age(timeinfostr, &(timeinfoptr->tm_sec), SECONDSPERHOUR);
 	    break;
-	case 'D': relage_ns = adjust_relative_age(timeinfostr, &(brkdwntimeptr->tm_sec), SECONDSPERDAY);
+	case 'D': relativeage_ns = adjust_relative_age(timeinfostr, &(timeinfoptr->tm_sec), SECONDSPERDAY);
 	    break;
-	case 'W': relage_ns = adjust_relative_age(timeinfostr, &(brkdwntimeptr->tm_sec), SECONDSPERWEEK);
+	case 'W': relativeage_ns = adjust_relative_age(timeinfostr, &(timeinfoptr->tm_sec), SECONDSPERWEEK);
 	    break;
 	case 'M': check_integer(timeinfostr);
-	    brkdwntimeptr->tm_mon -= atoi(timeinfostr);
+	    timeinfoptr->tm_mon -= atoi(timeinfostr);
 	    break;
 	case 'Y': check_integer(timeinfostr);
-	    brkdwntimeptr->tm_year -= atoi(timeinfostr);
+	    timeinfoptr->tm_year -= atoi(timeinfostr);
 	    break;
 	default: fprintf(stderr, "Error: Illegal time unit '%c'\n", timeunitchar);
 	    exit(1);
     }
-    targettime_s = mktime(brkdwntimeptr);
+    targettime_s = mktime(timeinfoptr);
 
-    /* Due to storing times in 2 variables (*_s and *_ns), it is necessary to add 1s to
+    /* Due to storing times in two variables (_s and _ns), it is necessary to add 1s to
 	the targettime_ns value and subtract 1s from the targettime_s value whenever
-	starttime_ns < relage_ns. */
-    if (starttime_ns >= relage_ns) {
-	targettime_ns = starttime_ns - relage_ns;
+	starttime_ns < relativeage_ns. */
+    if (starttime_ns >= relativeage_ns) {
+	targettime_ns = starttime_ns - relativeage_ns;
     } else {
-	targettime_ns = starttime_ns - relage_ns + NANOSECONDSPERSECOND;
+	targettime_ns = starttime_ns - relativeage_ns + NANOSECONDSPERSECOND;
 	targettime_s--;
     }
 }
 
 
 /*******************************************************************************
-Set the absolute time (for both modification and access) based on the required
-format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
-environment variable FF_TIMESTAMPFORMAT. It is possible to specify a subset of
-these. If not all of year to second are specified, the values of the start
-time are used. For example, one could set FF_TIMESTAMPFORMAT to
-'date:%m%d, hour:%H' and specify these on the command line: 'date:', month, day,
-', hour:', and hour, e.g., 'date:1231, hour:23' - or '%d%m%H' and '311223').
-See strptime for details.
+Display the starttime in s.ns in human readable format.
 *******************************************************************************/
-void set_absolute_targettime(char *timeinfostr, struct tm *brkdwntimeptr) {
+void list_starttime() {
+    struct tm	timeinfo;
+    char	datestr[MAXDATESTRLENGTH];
+
+    localtime_r(&starttime_s, &timeinfo);
+    strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, &timeinfo);
+    fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
+    fflush(stderr);
+}
+
+
+/*******************************************************************************
+Convert a text input string (representing a timestamp) into a time since the
+Epoch (s in *time_s_ptr and ns in *time_ns_ptr).
+*******************************************************************************/
+void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm *timeinfoptr, time_t *time_s_ptr, time_t *time_ns_ptr) {
     size_t	timestampformatstrlen;
-    char	*fractionstr, *fromchptr, *tochptr;
-    char	nanosecondsstr[] = "000000000";
+    char	*decimalchptr;
 
-    targettime_ns = DEFAULTAGE;		/* set to zero - use if fraction of a second is specified */
+    *time_ns_ptr = DEFAULTAGE;		/* set to zero unless a fraction of a second is specified */
+    /* convert the command line timeinfostr (eg, YYYYMMDD_HHMMSS) to a breakdown time structure (struct tm)
+    and return a pointer to anything after the allowed format (formatstr), if any (which should be a decimal
+    fraction of a second - eg, ".25" */
+    decimalchptr = strptime(timeinfostr, formatstr, timeinfoptr);
 
-    /* convert the command line timeinfostr (eg, YYYYMMDD_HHMMSS) to a breakdown time structure */
-    fractionstr = strptime(timeinfostr, timestampformatstr, brkdwntimeptr);
-    if (fractionstr == NULL) {
-	fprintf(stderr, "Error: bad timestamp: '%s' must be in format '%s'\n", timeinfostr, timestampformatstr);
+    timeinfoptr->tm_isdst = -1; /* set is_dst to -1 so mktime will try to determine whether DST is in effect */
+    *time_s_ptr = mktime(timeinfoptr);	/* convert the breakdowns time structure to the number of seconds */
+
+    if (decimalchptr == NULL) {
+	fprintf(stderr, "Error: bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
 	exit(1);
-    } else if (*fractionstr == '.') {	/* if a decimal point ('.') follows a valid timestamp */
-	/* Ensure that the last characters of timestampformatstr (eg, %Y%m%d_%H%M%S) are SECONDSFORMATSTR ("%S") */
-	timestampformatstrlen = strlen(timestampformatstr);
+    } else if (*decimalchptr == DECIMALSEPARATORCHAR) {	/* if a DECIMALSEPARATORCHAR (decimal point) follows a valid timestamp */
+	/* Ensure that the last characters of formatstr (eg, %Y%m%d_%H%M%S) are SECONDSFORMATSTR ("%S") */
+	timestampformatstrlen = strlen(formatstr);
 	if (timestampformatstrlen < sizeof(SECONDSFORMATSTR)-1 ||
-		strcmp(timestampformatstr+timestampformatstrlen-(sizeof(SECONDSFORMATSTR)-1), SECONDSFORMATSTR)) {
+		strcmp(formatstr+timestampformatstrlen-(sizeof(SECONDSFORMATSTR)-1), SECONDSFORMATSTR)) {
 	    fprintf(stderr, "Error: last two characters of '%s' must be '%s' when using fractions of seconds\n",
-		timestampformatstr, SECONDSFORMATSTR);
+		formatstr, SECONDSFORMATSTR);
 	    exit(1);
 	}
-
-	/* Set targettime_ns to the fraction of a second contained in timeinfostr- eg, ".25" -> 250,000,000 ns */
-	fromchptr = fractionstr+1;
-	tochptr = nanosecondsstr;
-	while (*fromchptr && *tochptr) {	/* copy digits from fractionstr to temp string nanosecondsstr */
-	    if (isdigit(*fromchptr)) {
-		*tochptr++ = *fromchptr++;
-	    } else {
-		fprintf(stderr, "Error: Bad timestamp fraction: '%s' in '%s'\n", fractionstr, timeinfostr);
-		exit(1);
-	    }
-	}
-	*fromchptr = '\0';	/* Only the first 9 digits of the fraction are used; any more are ignored */
-	targettime_ns = atoi(nanosecondsstr);
-    } else if (*fractionstr != '\0') {
+	*time_ns_ptr = convert_string_to_ns(decimalchptr+1);
+    } else if (*decimalchptr != '\0') {
 	fprintf(stderr, "Error: Illegal timestamp character(s) starting at '%c' in timestamp '%s'\n",
-	    *fractionstr, timeinfostr);
+	    *decimalchptr, timeinfostr);
 	exit(1);
     }
-    if (fractionstr == NULL || *fractionstr != '\0' || verbosity > 1) {
-	fprintf(stderr, "i: absolute timestamp: '%s'\n", timeinfostr);
-    }
-    targettime_s = mktime(brkdwntimeptr);
 }
 
 
@@ -685,44 +728,76 @@ This function is called for both last access time and last modification time.
 *******************************************************************************/
 void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
     char	timeunitchar;
-    struct tm	*brkdwntimeptr;
+    struct tm	timeinfo;
     char	datestr[MAXDATESTRLENGTH];
-    time_t	relagenanoseconds;
+    time_t	relativeage_s, relativeage_ns;
 
-    if (c == RELMODAGECHAR) {
+    if (c == MODTIMEINFOCHAR) {
 	accesstimeflag = 0;
     } else {
 	accesstimeflag = 1;
     }
 
-    if (*timeinfostr == '-' ) {
-	/* eg, "-m -15D" find objects modified <= 15 days ago (newer than) */
-	newerthantargetflag = 1;
-	timeinfostr++;
-    } else {
-	/* eg, "-m [+]15D" find objects modified >= 15 days ago (older than) */
-	newerthantargetflag = 0;
-    }
 
     timeunitchar = *(timeinfostr+strlen(timeinfostr+1));
-    brkdwntimeptr = localtime(&starttime_s);
+    localtime_r(&starttime_s, &timeinfo);
 
-    if (isdigit(timeunitchar)) {	/* if the last character of timeinfostr is a digit */
-	set_absolute_targettime(timeinfostr, brkdwntimeptr);
-    } else {
-	set_relative_targettime(timeinfostr, brkdwntimeptr, timeunitchar);
+    if (isdigit(timeunitchar) || timeunitchar == DECIMALSEPARATORCHAR) {	/* last character of timeinfostr is a digit or '.' */
+	/*
+	Set the absolute time - for both (-m) modification and (-a) access - based on the
+	required format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
+	FF_TIMESTAMPFORMAT. It is possible to specify a subset of these. If not all of year to
+	second are specified, the values of the start time are used to fill the missing values.
+	For example, one could set FF_TIMESTAMPFORMAT to 'date:%m%d, hour:%H' and specify only
+	'date:', month, day, ', hour:', and hour, e.g., 'date:1231, hour:23' - or '%d%m%H' and
+	'311223'). See strptime for details. */
+	if (*timeinfostr == NEGATIVESIGNCHAR ) {
+	    newerthantargetflag = 0;
+	    timeinfostr++;
+	} else {
+	    newerthantargetflag = 1;
+	    if (*timeinfostr == POSITIVESIGNCHAR ) {
+		timeinfostr++;
+	    }
+	}
+	convert_text_time_to_s_and_ns(timeinfostr, timestampformatstr, &timeinfo, &targettime_s, &targettime_ns);
+    } else {	/* relative age */
+	if (*timeinfostr == NEGATIVESIGNCHAR ) {
+	    /* eg, (-m) '-15D' find objects modified <= 15 days ago (newer than) */
+	    newerthantargetflag = 1;
+	    timeinfostr++;
+	} else {
+	    /* eg, (-a) '[+]15D' find objects accessed >= 15 days ago (older than) */
+	    newerthantargetflag = 0;
+	}
+	set_relative_targettime(timeinfostr, &timeinfo, timeunitchar);
     }
 
-    /* This will be a problem in 2262 */
-    relagenanoseconds = (starttime_s-targettime_s)*NANOSECONDSPERSECOND + starttime_ns-targettime_ns;
-
     if (verbosity > 1) {
-	strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, brkdwntimeptr);
+	if (targettime_s <= starttime_s) {	/* ('normal') targettime is before startttime */
+	    if (targettime_ns <= starttime_ns) {
+		relativeage_s = starttime_s - targettime_s;
+		relativeage_ns = starttime_ns - targettime_ns;
+	    } else {
+		relativeage_s = starttime_s - targettime_s - 1;
+		relativeage_ns = starttime_ns - targettime_ns + NANOSECONDSPERSECOND;
+	    }
+	} else {				/* (future) targettime is after starttime */
+	    if (targettime_ns <= starttime_ns) {
+		relativeage_s = starttime_s - targettime_s + 1;
+		relativeage_ns = NANOSECONDSPERSECOND - (starttime_ns - targettime_ns);
+	    } else {
+		relativeage_s = starttime_s - targettime_s;
+		relativeage_ns = targettime_ns - starttime_ns;
+	    }
+	}
+	strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, &timeinfo);
 	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
 	fprintf(stderr, "i: %13.5fD ~= %10ld.%09lds last %s %s target time ('%s')\n",
-	    (float)(starttime_s-targettime_s)/SECONDSPERDAY, relagenanoseconds/NANOSECONDSPERSECOND,
-	    relagenanoseconds%NANOSECONDSPERSECOND, accesstimeflag ? "accessed" : "modified",
+	    (float)(starttime_s-targettime_s)/SECONDSPERDAY, relativeage_s,
+	    relativeage_ns, accesstimeflag ? "accessed" : "modified",
 	    newerthantargetflag ? "after (newer than)" : "before (older than)", timeinfostr);
+	list_starttime();
 	fflush(stderr);
     }
 }
@@ -735,15 +810,18 @@ or last access time, as required.
 void set_target_time_by_object_time(char *targetobjectstr, char c) {
     struct stat	statinfo;
 
-    newerthantargetflag = 0;
-    if (*targetobjectstr == '-') {
-	/* eg, "-M -foo" find objects last modified AFTER foo was (NEWER than) */
+    if (*targetobjectstr == NEGATIVESIGNCHAR) {
+	/* eg, "-M -foo" find objects last modified BEFORE foo was (OLDER than) */
+	newerthantargetflag = 0;
+	targetobjectstr++;
+    } else {
+	/* eg, "-M [+]foo" find objects last modified AFTER foo was (OLDER than) */
 	newerthantargetflag = 1;
-	targetobjectstr++;
-    } else if (*targetobjectstr == '+') {
-	/* eg, "-M [+]foo" find objects last modified BEFORE foo was (OLDER than) */
-	targetobjectstr++;
+	if (*targetobjectstr == POSITIVESIGNCHAR) {
+	    targetobjectstr++;
+	}
     }
+
     if (verbosity > 1) {
 	fprintf(stderr, "i: last %s %s than '%s'\n", accesstimeflag ? "accessed" : "modified",
 	    newerthantargetflag ? "after (newer than)" : "before (older than)", targetobjectstr);
@@ -751,7 +829,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
     }
 
     if (*targetobjectstr && (lstat(targetobjectstr, &statinfo) != -1)) {
-	if (c == REFMODAGECHAR) {
+	if (c == REFMODTIMECHAR) {
 	    accesstimeflag = 0;
 	    targettime_s = statinfo.st_mtime;
 	    targettime_ns = statinfo.st_mtim.tv_nsec;
@@ -829,10 +907,12 @@ void command_line_long_to_short(char *longopt) {
 	{ "-p", "--pattern"	, 3 },
 	{ "-r", "--recursive"	, 5 },
 	{ "-R", "--reverse"	, 5 },
-	{ "-s", "--seconds"	, 3 },
+	{ "-s", "--seconds"	, 4 },
+	{ "-L", "--symlinks"	, 4 },
 	{ "-t", "--target"	, 3 },
 	{ "-u", "--units"	, 3 },
-	{ "-v", "--verbose"	, 3 },
+	{ "-V", "--variable"	, 4 },
+	{ "-v", "--verbose"	, 4 },
     };
 
     for (optiontableidx=0; optiontableidx<sizeof(optiontable)/sizeof(Optiontype); optiontableidx++) {
@@ -880,45 +960,18 @@ variable FF_STARTTIME is set, which is mainly useful for testing.)
 *******************************************************************************/
 void set_starttime() {
     struct timespec	currenttime;
-    int			numdigits;
-    char		*decimalptr;
+    struct tm		timeinfo;
 
-    if (!strcmp(starttimestr, NOW)) {
+    if (!strcmp(starttimestr, NOWSTR)) {
 	/* get the current time in s and ns */
 	clock_gettime(CLOCK_REALTIME, &currenttime);
 	starttime_s = currenttime.tv_sec;
 	starttime_ns = currenttime.tv_nsec;
-    } else {		/* generally, this is used for testing */
-	starttime_s = atoi(starttimestr);
-	if ((decimalptr=strchr(starttimestr, '.')) != NULL) {
-	    starttime_ns = atoi(++decimalptr);
-	    numdigits = strlen(decimalptr);
-	    while (numdigits < 9) {		/* No integer power operator, Doh! */
-		starttime_ns *= 10;
-		numdigits++;
-	    }
-	    if (starttime_ns < 0 || starttime_ns >= NANOSECONDSPERSECOND) {
-		fprintf(stderr, "Illegal value for starttime fraction: %ld ns\n", starttime_ns);
-		exit(1);
-	    }
-	} else {
-	    starttime_ns = 0;
-	}
+    } else {		/* this is used for testing */
+	convert_text_time_to_s_and_ns(starttimestr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
+	fprintf(stderr, "i: set starttime to '%s' with environment variable %s\n", starttimestr, FF_STARTTIMESTR);
+	list_starttime();
     }
-}
-
-
-/*******************************************************************************
-Display the starttime in s.ns and human readable format.
-*******************************************************************************/
-void list_starttime() {
-    struct tm	*brkdwntimeptr;
-    char	datestr[MAXDATESTRLENGTH];
-
-    brkdwntimeptr = localtime(&starttime_s);
-    strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, brkdwntimeptr);
-    fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
-    fflush(stderr);
 }
 
 
@@ -926,18 +979,59 @@ void list_starttime() {
 If any of the environment variables in envvartable have been set, overwrite the
 default values of the relevant (string) variable with the contents.
 *******************************************************************************/
-void set_envvars() {
+void grab_environment_variables() {
     unsigned int	idx;
     char		*envvarvaluestr;
 
+    /* check all valid environment variables. If it's set, assign the environment variable value */
     for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
 	if ((envvarvaluestr=getenv(envvartable[idx].name)) != NULL) {
 	    *envvartable[idx].valueptr = malloc(strlen(envvarvaluestr)+1);
 	    strcpy(*envvartable[idx].valueptr, envvarvaluestr);
-	} else {
+	} else {	/* if it's not set, use the default value */
 	    *envvartable[idx].valueptr = malloc(strlen(envvartable[idx].defaultvalue)+1);
 	    strcpy(*envvartable[idx].valueptr, envvartable[idx].defaultvalue);
 	}
+    }
+}
+
+
+/*******************************************************************************
+All of the values that can be configured with the FF_... environment variables
+can also be set on the command line. Command line values take precedence over
+environment variables (i.e., if they are set in both places).
+*******************************************************************************/
+void set_cmd_line_envvar(char *inputstr) {
+    struct tm		timeinfo;
+    unsigned int	idx;
+    char		*chptr;
+    int			foundflag = 0;
+
+    if ((chptr=strchr(inputstr, '=')) != NULL) {
+	*chptr++ = '\0';
+	for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
+	    if (!strcmp(inputstr, envvartable[idx].name)) {
+		if (!strcmp(inputstr, FF_STARTTIMESTR)) {	/* set the start time - special case */
+		    convert_text_time_to_s_and_ns(chptr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
+		    fprintf(stderr, "i: set starttime to '%s' with command line variable %s\n", chptr, FF_STARTTIMESTR);
+		    if (targettime_s != DEFAULTAGE || targettime_ns != DEFAULTAGE) {
+			fprintf(stderr, "W: Attention: %s has been overwritten with a new value!\n", FF_STARTTIMESTR);
+		    }
+		    list_starttime();
+		}
+		*envvartable[idx].valueptr = malloc(strlen(chptr)+1);
+		strcpy(*envvartable[idx].valueptr, chptr);
+		foundflag = 1;
+	    }
+	}
+    } else {
+	fprintf(stderr, "Illegal variable assignment (missing '='): '%s'\n", inputstr);
+	exit(1);
+    }
+
+    if (!foundflag) {
+	fprintf(stderr, "No such variable '%s'\n", inputstr);
+	exit(1);
     }
 }
 
@@ -952,7 +1046,7 @@ void list_envvartable() {
     char		outputformatstr[MAXOUTPUTFMTMSGLEN];
     size_t		maxvarnamelen = 0, maxvarvaluelen = 0;
 
-    /* Find the max lengths of the name and value strings (used for formatting) */
+    /* Find the max lengths of the name and value strings (used for output formatting) */
     for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
 	maxvarnamelen = strlen(envvartable[idx].name) > maxvarnamelen ?
 	    strlen(envvartable[idx].name) : maxvarnamelen;
@@ -985,7 +1079,7 @@ int main(int argc, char *argv[]) {
     regex_t	extregexp;
 
     setlocale(LC_ALL, getenv("LANG"));
-    setlocale(LC_NUMERIC, "en_US.UTF-8");
+    setlocale(LC_NUMERIC, "en_US.UTF-8");	/* always use '.' for 'decimal points' */
 
     if (argc <= 1) {
 	display_usage_message(argv[0]);
@@ -1004,7 +1098,7 @@ int main(int argc, char *argv[]) {
 	}
     }
 
-    set_envvars();
+    grab_environment_variables();
     set_starttime();
     set_extended_regular_expression(DEFAULTERE, &extregexp);	/* set default */
 
@@ -1024,12 +1118,14 @@ int main(int argc, char *argv[]) {
 		case 'A': set_target_time_by_object_time(optarg, optchar);	break;
 		case 'D': maxrecursiondepth = MAX(0,atoi(optarg));		break;
 		case 'M': set_target_time_by_object_time(optarg, optchar);	break;
+		case 'V': set_cmd_line_envvar(optarg);				break;
 		case 'h': display_usage_message(argv[0]); exit(0);		break;
 		case 'n': displaynsecflag = 1;					break;
 		case 's': displaysecondsflag = 1;				break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR;
 			    bytesunitchar = BYTESUNITCHAR;			break;
 		case 'v': verbosity++;						break;
+		case 'L': followsymlinksflag = 1;				break;
 		case 'R': sortmultiplier = -1;					break;
 		case 't': process_path(optarg, &extregexp, 0);
 			    numtargets++;					break;
@@ -1043,9 +1139,11 @@ int main(int argc, char *argv[]) {
 	}
     }
 
-    if (verbosity > 1) {
+    /* Display starttime unless it's already been displayed (ie, by setting targettime and/or starttime) */
+    if (verbosity > 1 && targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE && !strcmp(starttimestr, NOWSTR)) {
 	list_starttime();
     }
+
     list_objects();
     fflush(stdout);
     if (verbosity > 3) {

@@ -1,11 +1,11 @@
 #/bin/sh
 
 ################################################################################
-# findfiles_test: test findfiles C program (for versions >= 2.0.0)
+# findfiles_test: test findfiles C program (for versions >= 2.2.0)
 ################################################################################
 
 ################################################################################
-# Copyright (C) 2016-2019 James S. Crook
+# Copyright (C) 2016-2022 James S. Crook
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 
 ################################################################################
 # Version 1.0	2019/04/23
+# Version 2.0	2021/11/06
 ################################################################################
 
 ################################################################################
@@ -32,18 +33,20 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
-FINDFILES=$1
+FF=$1
 
 ################################################################################
 # Initialize
 ################################################################################
-TESTDIR=/tmp/FF_Test_Dir_DELETEME
-rm -rf $TESTDIR
-mkdir  $TESTDIR
-cd     $TESTDIR
+TESTBASEDIR=/tmp/FF_Test_Dir_DELETEME
+rm -rf $TESTBASEDIR
+mkdir  $TESTBASEDIR
+cd     $TESTBASEDIR
+TESTDIR=$TESTBASEDIR
 
 export TZ=UTC
-export LANG=en_AU.UTF-8	# Display times in 24 hour format
+export LANG=C
+export LC_TIME=C
 unset FF_DATETIMEFORMAT
 unset FF_AGEFORMAT
 
@@ -51,8 +54,8 @@ unset FF_AGEFORMAT
 # Loop through - from first to last, by increment - for hour, then minute, then
 # second and then ns (args 1-12). For each HMSns, set the TOUCHDDATE (date time)
 # and FILENAME (date_time) environment variables from the 12 function arguments
-# and create an empty file (with touch) named $TESTDIR/$FILENAME with a create
-# timestamp of TOUCHDATE.
+# and create an empty file (with touch) named $TESTBASEDIR/$FILENAME with a
+# create timestamp of TOUCHDATE.
 ################################################################################
 function create_ts_files_HMSns {
       BEGHOUR=${1};    ENDHOUR=${2};    INCHOUR=${3}
@@ -84,6 +87,7 @@ function create_ts_files_HMSns {
     done
 }
 
+
 ################################################################################
 # Loop through - from first to last, by increment - for year, then month, then
 # day (args 1-9). For each YMD, call create_ts_files_HMSns with the 4 HMSns
@@ -94,7 +98,6 @@ function create_ts_files_YMDHMSns {
     BEGMONTH=${4}; ENDMONTH=${5}; INCMONTH=${6}
       BEGDAY=${7};   ENDDAY=${8};   INCDAY=${9}
 
-    rm -f $TESTDIR/*
     YEAR=$BEGYEAR
     while [ $YEAR -le $ENDYEAR ]; do
 	MONTH=$BEGMONTH
@@ -112,150 +115,291 @@ function create_ts_files_YMDHMSns {
     done
 }
 
+
 ################################################################################
 # Create the test files with specific timestamps and set the test start time
 # environment variable FF_STARTTIME to a time very nearly at the start of "the
 # epoch". Then call findfiles with various test arguments.
 ################################################################################
+echo ======================================================================================================
+echo "Test with a very early startime (close to 'the Epoch' in 1970)"
+echo ======================================================================================================
+rm -rf $TESTBASEDIR/*
 create_ts_files_YMDHMSns 1970 1970 1   1 1 1   1 1 1 \
     0 0 1   1 1 1   40 40 1   0 999999999 100000000
 
 (
-    SETSTARTTIME="1970-01-01 00:16:41"; FRACSECS=".3"
-    export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
-    export FF_INFODATETIMEFORMAT="%c %Z"
-    for FINDFILESARGS in \
-	"-vvvvfn             ." \
-	" -vvvfn             ." \
-	"  -vvfn -m  900.60s ." \
-	"  -vvfn -m -900.60s ." \
-	"  -vvfn -m  900.60s ." \
-	"  -vvfn -m -900.60s ." \
-	"  -vvfn -m   15.01m ." \
-	"  -vvfn -m  -15.01m ." \
-	"  -vvfn -m   15.01m ." \
-	"  -vvfn -m  -15.01m ." \
+    export FF_STARTTIME=19700101_001641.3
+    for CMD in \
+	"$FF -vvvvfn             ." \
+	"$FF  -vvvfn             ." \
+	"$FF   -vvfn -m  900.60s ." \
+	"$FF   -vvfn -m -900.60s ." \
+	"$FF   -vvfn -m  900.60s ." \
+	"$FF   -vvfn -m -900.60s ." \
+	"$FF   -vvfn -m   15.01m ." \
+	"$FF   -vvfn -m  -15.01m ." \
+	"$FF   -vvfn -m   15.01m ." \
+	"$FF   -vvfn -m  -15.01m ." \
 
     do
-	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
     done
 )
+
 
 ################################################################################
 # Create the test files with relatively recent timestamps and set the test start
 # time environment variable FF_STARTTIME to a value around that time. Then call
 # findfiles with various test arguments. 
 ################################################################################
+echo ======================================================================================================
+echo "Test with start and target times around 2018."
+echo ======================================================================================================
+rm -rf $TESTBASEDIR/*
 create_ts_files_YMDHMSns 2018 2018 1   1 1 1   9 11 1 \
     0 0 1   0 0 1   0 0 1   0 999999999 250000000
 
 (
-    SETSTARTTIME="2018-01-30 00:00:00"; FRACSECS=".0"
-    export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
-    export FF_INFODATETIMEFORMAT="%c %Z"
+    export FF_STARTTIME=20180130_000000
     REFFILE="2018-01-10_00:00:00.750000000"
-    for FINDFILESARGS in \
-	"-vvvvf          ." \
-	"-vvvvfn         ." \
-	"  -vvf  -m -20D ." \
-	"  -vvfn -m -20D ." \
-	"  -vvf  -a -20D ." \
-	"  -vvfn -a -20D ." \
-	"  -vvf  -m  20D ." \
-	"  -vvfn -m  20D ." \
-	"  -vvf  -a  20D ." \
-	"  -vvfn -a  20D ." \
-	"  -vvf  -M -$REFFILE ." \
-	"  -vvfn -M -$REFFILE ." \
-	"  -vvf  -A -$REFFILE ." \
-	"  -vvfn -A -$REFFILE ." \
-	"  -vvf  -M  $REFFILE ." \
-	"  -vvfn -M  $REFFILE ." \
-	"  -vvf  -A  $REFFILE ." \
-	"  -vvfn -A  $REFFILE ." \
-	"  -vvfn -m  1728000.25s ." \
-	"  -vvfn -m  20.25D ." \
+    for CMD in \
+	"$FF -vvvvf          ." \
+	"$FF -vvvvfn         ." \
+	"$FF   -vvf  -m -20D ." \
+	"$FF   -vvfn -m -20D ." \
+	"$FF   -vvf  -a -20D ." \
+	"$FF   -vvfn -a -20D ." \
+	"$FF   -vvf  -m  20D ." \
+	"$FF   -vvfn -m  20D ." \
+	"$FF   -vvf  -a  20D ." \
+	"$FF   -vvfn -a  20D ." \
+	"$FF   -vvf  -M  $REFFILE ." \
+	"$FF   -vvfn -M  $REFFILE ." \
+	"$FF   -vvf  -A  $REFFILE ." \
+	"$FF   -vvfn -A  $REFFILE ." \
+	"$FF   -vvf  -M -$REFFILE ." \
+	"$FF   -vvfn -M -$REFFILE ." \
+	"$FF   -vvf  -A -$REFFILE ." \
+	"$FF   -vvfn -A -$REFFILE ." \
+	"$FF   -vvfn -m  1728000.25s ." \
+	"$FF   -vvfn -m  20.25D ." \
 
     do
-	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
     done
+)
 
-    ############ Check different locales ############
 
-    # With FF_INFODATETIMEFORMAT set
-    FINDFILESARGS="-vvf -m 20.0025D ."
-    for LANG in fr_FR.UTF-8 es_ES.UTF-8; do
-	echo "========== export LANG=$LANG; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	eval export LANG=$LANG; $FINDFILES $FINDFILESARGS 2>&1
-    done
-
-    # Without FF_INFODATETIMEFORMAT set
-    unset FF_INFODATETIMEFORMAT
-    for LANG in en_US.UTF-8 de_DE.UTF-8; do
-	echo "========== export LANG=$LANG; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	eval export LANG=$LANG; $FINDFILES $FINDFILESARGS 2>&1
+echo ======================================================================================================
+echo "Test LANG set to different locales"
+echo ======================================================================================================
+(
+    export FF_STARTTIME=20180130_000000
+    for LANGLOCALE in en_US.UTF-8 es_ES.UTF-8 de_DE.UTF-8 fr_FR.UTF-8;  do
+	CMD="LANG=$LANGLOCALE $FF -vvf -m 20.0025D ."
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
     done
 
 )
+
 
 ################################################################################
 # Create the test files with relatively recent timestamps and set the test start
 # time environment variable FF_STARTTIME to a value around that time. Then call
 # findfiles with various test arguments to test timezones.
 ################################################################################
+echo ======================================================================================================
+echo "Test different timezones"
+echo ======================================================================================================
+rm -rf $TESTBASEDIR/*
 create_ts_files_YMDHMSns 2017 2017 1   1 12 1   1 1 1 \
     0 0 1   0 0 1   0 0 1   0 0 1000000000
 
 (
-    SETSTARTTIME="2018-01-02 00:00:00"; FRACSECS=".5"
-    export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
-    export FF_INFODATETIMEFORMAT="%c %Z"
+    export FF_STARTTIME=20180102_000000.5
     for TIMEZONE in \
 	UTC \
 	Australia/Sydney \
 	America/Los_Angeles \
 
-do
-	for FINDFILESARGS in \
-	    "-vvf  -m -6M . -a 2Y ." \
-	    "-vvfn -m -6M . -a 2Y ." \
+    do
+	for CMD in \
+	    "TZ=$TIMEZONE $FF -vvf  -m -6M . -a 2Y ." \
+	    "TZ=$TIMEZONE $FF -vvfn -m -6M . -a 2Y ." \
 
 	do
-	    echo "========== export TZ=$TIMEZONE; findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	    eval export TZ=$TIMEZONE; $FINDFILES $FINDFILESARGS 2>&1
+	    echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	    eval "$CMD" 2>&1
+	    echo
 	done
-	done
+    done
 )
+
 
 ################################################################################
 # Use the files from the previous test(s), produce output using the user-defined
 # date and age format environment variables: FF_DATETIMEFORMAT and FF_AGEFORMAT
 ################################################################################
+echo ======================================================================================================
+echo "Test test changing output formats"
+echo ======================================================================================================
 (
-    SETSTARTTIME="2017-12-31 00:00:00"; FRACSECS=".5"
-    export FF_STARTTIME=$(date +%s --date="$SETSTARTTIME")$FRACSECS
+    export FF_STARTTIME=20171231_000000.5
     export FF_DATETIMEFORMAT="%04d-%02d-%02dT%02d:%02d:%02dZ"
     export FF_AGEFORMAT="%7ldDays;%02ldh,%02ldm,%02lds"
-    export FF_INFODATETIMEFORMAT="%c %Z"
-    for FINDFILESARGS in \
-	"-vvvvf  -m -6M ." \
-	"-vvvvfn -m -6M ." \
-	"  -vvf  -m -6M ." \
-	"  -vvfn -m -6M ." \
+    for CMD in \
+	"$FF -vvvvf  -m -6M ." \
+	"$FF -vvvvfn -m -6M ." \
+	"$FF   -vvf  -m -6M ." \
+	"$FF   -vvfn -m -6M ." \
 
     do
-	echo "========== findfiles $FINDFILESARGS (${SETSTARTTIME}$FRACSECS/$FF_STARTTIME) =========="
-	eval $FINDFILES $FINDFILESARGS 2>&1
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval $CMD 2>&1
+	echo
     done
 )
+
+
+################################################################################
+# Create some directories, symbolic links and files for the tests below.
+################################################################################
+rm -rf $TESTBASEDIR/*
+DIRL1=DirL1
+mkdir ${DIRL1}
+ln -s ${DIRL1} ${DIRL1}_symlink
+TESTDIR=${DIRL1}
+create_ts_files_YMDHMSns 2021 2021 1   1 12 6   1 1 1 \
+    0 0 1   0 0 1   0 0 1   0 0 1000000000
+
+DIRL2=DirL2
+mkdir ${DIRL1}/${DIRL2}
+ln -s ${DIRL2} ${DIRL1}/${DIRL2}_symlink
+TESTDIR=${DIRL1}/${DIRL2}
+create_ts_files_YMDHMSns 2021 2021 1   6 6 1   15 16 1 \
+    0 0 1   0 0 1   0 0 1   0 0 1000000000
+
+
+echo ======================================================================================================
+echo "Test that symbolic links are processed correctly"
+echo ======================================================================================================
+(
+    STARTTIME=20211231_120000.0
+    for CMD in \
+	"$FF -V FF_STARTTIME=$STARTTIME -vf     ${DIRL1}_symlink" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vf     ${DIRL1}" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vf     ${DIRL1}_symlink/" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vf  -L ${DIRL1}_symlink" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr    ${DIRL1}_symlink" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr    ${DIRL1}" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr    ${DIRL1}_symlink/" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr -L ${DIRL1}_symlink" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr    ${DIRL1} ${DIRL1}_symlink" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfr -L ${DIRL1} ${DIRL1}_symlink" \
+
+    do
+	echo "========== [$CMD] =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
+echo ======================================================================================================
+echo "Test all the configurable parameters as both environment variables and command line arguments."
+echo ======================================================================================================
+(
+    export TZ=UTC
+    export FF_STARTTIME=20220301_000000.1
+    TIMESTAMPFORMAT="'%Y%m%d-%H%M%S'"
+    TIMESTAMP=-20220301-000000
+    AGEFORMAT="'%7ld(Day), %02ld%02ld%02ld'"
+    DATETIMEFORMAT="'%04d%02d%02dT%02d%02d%02d'"
+    INFODATETIMEFORMAT="'%c %Z'"
+    for CMD in \
+	"       FF_TIMESTAMPFORMAT=$TIMESTAMPFORMAT    FF_AGEFORMAT=$AGEFORMAT    FF_DATETIMEFORMAT=$DATETIMEFORMAT   $FF -vvvvf -m $TIMESTAMP ${DIRL1}" \
+	"$FF -V FF_TIMESTAMPFORMAT=$TIMESTAMPFORMAT -V FF_AGEFORMAT=$AGEFORMAT -V FF_DATETIMEFORMAT=$DATETIMEFORMAT       -vvvvf -m $TIMESTAMP ${DIRL1}" \
+	"       FF_TIMESTAMPFORMAT=$TIMESTAMPFORMAT    FF_INFODATETIMEFORMAT=$INFODATETIMEFORMAT                      $FF -vvvvf -m $TIMESTAMP ${DIRL1}" \
+	"$FF -V FF_TIMESTAMPFORMAT=$TIMESTAMPFORMAT -V FF_INFODATETIMEFORMAT=$INFODATETIMEFORMAT                          -vvvvf -m $TIMESTAMP ${DIRL1}" \
+	\
+	"$FF -V FF_STARTTIME=20220301_000000.3 -vvvvf -m -$FF_STARTTIME ${DIRL1} -V FF_STARTTIME=20220301_000000.5" \
+	"$FF -V FF_STARTTIME=20220301_000000.3 -vvvvf                   ${DIRL1} -V FF_STARTTIME=20220301_000000.5" \
+
+    do
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
+echo ======================================================================================================
+echo "Test handling absolute times"
+echo ======================================================================================================
+(
+    for CMD in \
+	"TZ=UTC FF_STARTTIME=19700101_002000.5 $FF -vvvvf -m 19700101_001000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700101_002000.5 $FF -vvvvf -m 19700101_001000.7 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700101_001000.5 $FF -vvvvf -m 19700101_002000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700101_001000.5 $FF -vvvvf -m 19700101_002000.7 ${DIRL1}" \
+\
+	"TZ=UTC FF_STARTTIME=19700101_000000.5 $FF -vvvvf -m 19700102_000000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700101_000000.5 $FF -vvvvf -m 19700102_000000.7 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700102_000000.5 $FF -vvvvf -m 19700101_000000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700102_000000.5 $FF -vvvvf -m 19700101_000000.7 ${DIRL1}" \
+\
+	"TZ=UTC FF_STARTTIME=19700101_000000.4 $FF -vvvvf -m 19700102_000000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700101_000000.4 $FF -vvvvf -m 19700102_000000.7 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700102_000000.4 $FF -vvvvf -m 19700101_000000.3 ${DIRL1}" \
+	"TZ=UTC FF_STARTTIME=19700102_000000.4 $FF -vvvvf -m 19700101_000000.7 ${DIRL1}" \
+
+    do
+	echo "========== [$CMD] =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
+echo ======================================================================================================
+echo "Test handling relative times with lots of significant ns digits"
+echo ======================================================================================================
+(
+    export TZ=UTC
+    export FF_STARTTIME=20220301_000010.5
+    for CMD in \
+	"$FF -vvvvf -m 1s                    ${DIRL1}" \
+	"$FF -vvvvf -m 1.s                   ${DIRL1}" \
+	"$FF -vvvvf -m 1.0s                  ${DIRL1}" \
+	"$FF -vvvvf -m 1.123s                ${DIRL1}" \
+	"$FF -vvvvf -m 1.123456s             ${DIRL1}" \
+	"$FF -vvvvf -m 1.123456789s          ${DIRL1}" \
+	"$FF -vvvvf -m 1.123456789012s       ${DIRL1}" \
+\
+	"$FF -vvvvf -m 1.000123456789s       ${DIRL1}" \
+	"$FF -vvvvf -m 1.000000123456789s    ${DIRL1}" \
+	"$FF -vvvvf -m 1.000000000123456789s ${DIRL1}" \
+\
+	"$FF -vvvvf -m 1.1234.56789s         ${DIRL1}" \
+	"$FF -vvvvf -m 1.1234x56789s         ${DIRL1}" \
+
+    do
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
 
 ################################################################################
 # Cleanup and exit
 ################################################################################
-rm -rf $TESTDIR
-
-    # JC
-    export FF_INFODATETIMEFORMAT="%c %Z"
-    # JC
+rm -rf $TESTBASEDIR
+exit 0
