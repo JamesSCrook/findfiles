@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.0.0"
+#define PROGRAMVERSIONSTRING	"3.0.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -102,7 +102,7 @@ last access and/or last modification times are both rare and uninteresting.
 #define NANOSECONDSPERSECOND	1000000000
 #define NANOSECONDSSTR		"1000000000"
 
-#define MAXRECURSIONDEPTH	 10000
+#define MAXRECURSIONDEPTH	256
 #define MAXDATESTRLENGTH	64
 #define MAXPATHLENGTH		2048
 #define INITMAXNUMOBJS		(  8*1024)	/* Allocate the object table to hold up to this many entries. */
@@ -119,12 +119,13 @@ last access and/or last modification times are both rare and uninteresting.
 #define NEGATIVESIGNCHAR	'-'
 #define DEFAULTAGE		0
 #define DEFAULTERE		".*"
+#define REG_MATCH		0		/* the counterpart to (defined) REG_NOMATCH */
 #define NOWSTR			"Now"
 #define SECONDSFORMATSTR	"%S"
 #define FF_STARTTIMESTR		"FF_STARTTIME"
 #define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforia:m:p:t:A:D:M:V:hnsuRLv"
+#define GETOPTSTR		"+dforia:m:p:t:x:A:D:M:V:hnsuRLv"
 
 typedef struct {
     char	*name;
@@ -167,6 +168,7 @@ int	returncode		= 0;
 
 /* Command line option flags - all set to false */
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
+int	regexecretcode		= REG_MATCH;		/* default is to match (not exclude) */
 int	recursiveflag		= 0;
 int	ignorecaseflag		= 0;
 int	regularfileflag		= 0;
@@ -204,7 +206,8 @@ void display_usage_message(char *progname) {
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
     printf("  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
-    printf("  -p|--pattern ERE                   : POSIX-style Extended Regular Expression (pattern) (default '.*')\n");
+    printf("  -p|--pattern ERE : include objects with names that match the ERE (default '.*')\n");
+    printf("  -x|--exclude ERE : exclude objects with names that match the ERE\n");
     printf("  -t|--target target_path            : target path (no default)\n");
     printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
     printf("  -V|--variable=value                : for FF_<var>=<value>\n");
@@ -270,7 +273,7 @@ void process_object(char *pathname, regex_t *extregexpptr) {
 	strcpy(objectname, pathname);
     }
 
-    if (regexec(extregexpptr, objectname, (size_t)0, NULL, 0) == 0) {
+    if (regexec(extregexpptr, objectname, (size_t)0, NULL, 0) == regexecretcode) {
 	if (lstat(pathname, &statinfo) == -1) {
 	    fprintf(stderr, "process_object: Cannot access '%s'\n", pathname);
 	    returncode = 1;
@@ -367,10 +370,11 @@ void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
 	return;
     }
 
-    if (S_ISREG(statinfo.st_mode)) {
+    if (S_ISREG(statinfo.st_mode)) {		/* process a "regular" file */
 	if (regularfileflag) {
 	    process_object(pathname, extregexpptr);
 	}
+    /* process a directory or symlink to a directory if followsymlinksflag is set */
     } else if (S_ISDIR(statinfo.st_mode) || (S_ISLNK(statinfo.st_mode) && followsymlinksflag)) {
 	if (recursiondepth == 0) {
 	   trim_trailing_slashes(pathname);
@@ -378,10 +382,19 @@ void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
 	if (directoryflag) {
 	    process_object(pathname, extregexpptr);
 	}
-	if (recursiondepth == 0 || (recursiveflag && recursiondepth <= maxrecursiondepth)) {
+
+	/* Is this a command line argument (directory or symlink/) AND maxrecursiondepth > 0 */
+	if (recursiondepth == 0 && maxrecursiondepth > 0) {
 	    process_directory(pathname, extregexpptr, recursiondepth);
+	} else if (recursiveflag) {
+	    if (recursiondepth < maxrecursiondepth) {
+		process_directory(pathname, extregexpptr, recursiondepth);
+	    } else if (verbosity > 1) {
+		fprintf(stderr, "w: Traversing directory '%s' (depth %d) would exceed max depth of %d\n",
+		    pathname, recursiondepth, maxrecursiondepth);
+	    }
 	}
-    } else if (otherobjectflag) {
+    } else if (otherobjectflag) {		/* process "other" object types */
 	process_object(pathname, extregexpptr);
     }
 }
@@ -842,10 +855,21 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 	fprintf(stderr, "Cannot access '%s'\n", targetobjectstr);
 	exit(1);
     }
+
     if (newerthantargetflag) {
-	targettime_ns += 1;	/* +1ns for NEWER than (NOT the same age!) */
-    } else {
-	targettime_ns -= 1 ;	/* -1ns for OLDER than (NOT the same age!) */
+        if (targettime_ns < NANOSECONDSPERSECOND-1) {	/* +1ns for NEWER than (NOT the same age!) */
+	    targettime_ns += 1;
+	} else {			/* eg, 340.999999999 -> 341.000000000 */
+	    targettime_s += 1;
+	    targettime_ns = 0;
+	}
+    } else {						/* -1ns for OLDER than (NOT the same age!) */
+        if (targettime_ns != 0) {
+	    targettime_ns -= 1;
+	} else {			/* eg, 341.000000000 -> 340.999999999 */
+	    targettime_s -= 1;
+	    targettime_ns = NANOSECONDSPERSECOND-1;
+	}
     }
 }
 
@@ -854,7 +878,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 Set the extended regular expression (pattern) to be used to match the object names.
 *******************************************************************************/
 #define MAXREGCOMPERRMSGLEN	64
-void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr) {
+void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr, int ereretcode) {
     char	regcomperrmsg[MAXREGCOMPERRMSGLEN];
     int		cflags;
     int		regcompretval;
@@ -870,6 +894,7 @@ void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr) 
 	printf("Regular expression error for '%s': %s\n", extregexpstr, regcomperrmsg);
 	exit(1);
     }
+    regexecretcode = ereretcode;
 }
 
 
@@ -897,6 +922,7 @@ void command_line_long_to_short(char *longopt) {
 	{ "-A", "--acc-ref"	, 7 },
 	{ "-D", "--depth"	, 4 },
 	{ "-d", "--directories"	, 4 },
+	{ "-x", "--exclude"	, 3 },
 	{ "-f", "--files"	, 3 },
 	{ "-h", "--help"	, 3 },
 	{ "-i", "--ignore-case"	, 3 },
@@ -1100,35 +1126,34 @@ int main(int argc, char *argv[]) {
 
     grab_environment_variables();
     set_starttime();
-    set_extended_regular_expression(DEFAULTERE, &extregexp);	/* set default */
+    set_extended_regular_expression(DEFAULTERE, &extregexp, REG_MATCH);	/* set default */
 
     /* Both while loops and the if (below) are required because command line options
     and arguments can be interspersed and are processed in (left-to-right) order */
     while (optind < argc) {
 	while ((optchar = getopt(argc, argv, GETOPTSTR)) != -1) {
-	    switch(optchar) {
-		case 'd': directoryflag		= !directoryflag;		break;
-		case 'f': regularfileflag	= !regularfileflag;		break;
-		case 'o': otherobjectflag	= !otherobjectflag;		break;
-		case 'r': recursiveflag		= !recursiveflag;		break;
-		case 'i': ignorecaseflag	= !ignorecaseflag;		break;
-		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);	break;
-		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);	break;
-		case 'p': set_extended_regular_expression(optarg, &extregexp);	break;
-		case 'A': set_target_time_by_object_time(optarg, optchar);	break;
-		case 'D': maxrecursiondepth = MAX(0,atoi(optarg));		break;
-		case 'M': set_target_time_by_object_time(optarg, optchar);	break;
-		case 'V': set_cmd_line_envvar(optarg);				break;
-		case 'h': display_usage_message(argv[0]); exit(0);		break;
-		case 'n': displaynsecflag = 1;					break;
-		case 's': displaysecondsflag = 1;				break;
-		case 'u': secondsunitchar = SECONDSUNITCHAR;
-			    bytesunitchar = BYTESUNITCHAR;			break;
-		case 'v': verbosity++;						break;
-		case 'L': followsymlinksflag = 1;				break;
-		case 'R': sortmultiplier = -1;					break;
-		case 't': process_path(optarg, &extregexp, 0);
-			    numtargets++;					break;
+	    switch (optchar) {
+		case 'd': directoryflag		= !directoryflag;				break;
+		case 'f': regularfileflag	= !regularfileflag;				break;
+		case 'o': otherobjectflag	= !otherobjectflag;				break;
+		case 'r': recursiveflag		= !recursiveflag;				break;
+		case 'i': ignorecaseflag	= !ignorecaseflag;				break;
+		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
+		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
+		case 'p': set_extended_regular_expression(optarg, &extregexp, REG_MATCH);	break;
+		case 'x': set_extended_regular_expression(optarg, &extregexp, REG_NOMATCH);	break;
+		case 'A': set_target_time_by_object_time(optarg, optchar);			break;
+		case 'D': maxrecursiondepth = MAX(0, atoi(optarg));				break;
+		case 'M': set_target_time_by_object_time(optarg, optchar);			break;
+		case 'V': set_cmd_line_envvar(optarg);						break;
+		case 'h': display_usage_message(argv[0]); exit(0);				break;
+		case 'n': displaynsecflag = 1;							break;
+		case 's': displaysecondsflag = 1;						break;
+		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;
+		case 'v': verbosity++;								break;
+		case 'L': followsymlinksflag = 1;						break;
+		case 'R': sortmultiplier = -1;							break;
+		case 't': process_path(optarg, &extregexp, 0); numtargets++;			break;
 	    }
 	}
 

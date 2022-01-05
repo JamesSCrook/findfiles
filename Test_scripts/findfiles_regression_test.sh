@@ -44,53 +44,63 @@ if [ $# -ne 2 ]; then
     exit
 fi
 
-if [ \! -x $1 ]; then
-    echo "$1 is not an executable file, aborting"
+EXE1=$1
+EXE2=$2
+
+if [ \! -x $EXE1 ]; then
+    echo "$EXE1 is not an executable file, aborting"
     exit 1
 fi
 
-if [ \! -x $2 ]; then
-    echo "$2 is not an executable file, aborting"
+if [ \! -x $EXE2 ]; then
+    echo "$EXE2 is not an executable file, aborting"
     exit 1
 fi
 
-export FF_STARTTIME=$(date +%s).5
-#echo  $FF_STARTTIME
+export FF_STARTTIME=$(date +%Y%m%d_%H%M%S).5
 
 STDOUTFILE1=/tmp/ff_rt_1.out
 STDERRFILE1=/tmp/ff_rt_1.err
 STDOUTFILE2=/tmp/ff_rt_2.out
 STDERRFILE2=/tmp/ff_rt_2.err
-STDOUTDIFFS=/tmp/ff_rt_diffs
+STDOUTDIFFS=/tmp/ff_rt_stdout.dif
+STDERRDIFFS=/tmp/ff_rt_stderr.dif
 
 ################################################################################
 # Call the both versions of findfiles with the same arguments asyncrhonously
 # so 
 ################################################################################
 function compare {
-    $1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
-    $2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
+    $EXE1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
+    $EXE2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
     wait
-
+    
     diff $STDOUTFILE1 $STDOUTFILE2 > $STDOUTDIFFS
-    RETVAL=$?
-    if [ $RETVAL -eq 0 ]; then
-	printf "OK! %5d lines : %-40s\n" "$(cat /tmp/ff_rt_1.out | wc -l)" "$ARGS"
+    STDOUTDIFFRETVAL=$?
+    STDOUTNUMLNS1=$(cat $STDOUTFILE1 | wc -l)
+    STDOUTNUMLNS2=$(cat $STDOUTFILE2 | wc -l)
+
+    diff $STDERRFILE1 $STDERRFILE2 > $STDERRDIFFS
+    STDERRDIFFRETVAL=$?
+    STDERRNUMLNS1=$(cat $STDERRFILE1 | wc -l)
+    STDERRNUMLNS2=$(cat $STDERRFILE2 | wc -l)
+
+    if [ $STDOUTDIFFRETVAL -eq 0 ]; then
+	if [ $STDERRDIFFRETVAL -eq 0 ]; then
+	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "$ARGS"
+	else
+	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "$ARGS"
+	    echo "------------------- stderr diffs ---------------------"
+	    cat $STDERRDIFFS
+	    DIFFCOUNT=$((DIFFCOUNT+1))
+	fi
     else
-	NLINES1=$(cat $STDOUTFILE1 | wc -l)
-	NLINES2=$(cat $STDOUTFILE2 | wc -l)
-	echo "======= $ARGS [stdout: $NLINES1 vs $NLINES2 lines] ========="
-	if [ $NLINES1 -ne $NLINES2 ]; then
-	    echo "****** ERROR ****** : Number of lines is different!!!!"
-	fi
-	cat /tmp/ff_rt_diffs
-	if [ -s $STDERRFILE1 ]; then
-	    echo "--- stderr 1 ---"
-	    cat $STDERRFILE1
-	fi
-	if [ -s $STDERRFILE2 ]; then
-	    echo "--- stderr 2 ---"
-	    cat $STDERRFILE2
+	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "$ARGS"
+	echo "------------------- stdout diffs ---------------------"
+	cat $STDOUTDIFFS
+	if [ $STDERRDIFFRETVAL -ne 0 ]; then
+	    echo "------------------- stderr diffs ---------------------"
+	    cat $STDERRDIFFS
 	fi
 	DIFFCOUNT=$((DIFFCOUNT+1))
     fi
