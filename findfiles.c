@@ -2,7 +2,7 @@
 ********************************************************************************
 
 findfiles: find files based on various selection criteria
-Copyright (C) 2016-2022 James S. Crook
+Copyright (C) 2016-2023 James S. Crook
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.0.1"
+#define PROGRAMVERSIONSTRING	"3.1.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -118,14 +118,13 @@ last access and/or last modification times are both rare and uninteresting.
 #define POSITIVESIGNCHAR	'+'
 #define NEGATIVESIGNCHAR	'-'
 #define DEFAULTAGE		0
-#define DEFAULTERE		".*"
 #define REG_MATCH		0		/* the counterpart to (defined) REG_NOMATCH */
 #define NOWSTR			"Now"
 #define SECONDSFORMATSTR	"%S"
 #define FF_STARTTIMESTR		"FF_STARTTIME"
 #define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforia:m:p:t:x:A:D:M:V:hnsuRLv"
+#define GETOPTSTR		"+dforia:m:p:t:x:A:D:M:V:hHnsuRLv"
 
 typedef struct {
     char	*name;
@@ -147,6 +146,13 @@ Envvar envvartable[] = {
     { "FF_TIMESTAMPFORMAT",	DEFAULTTIMESTAMPFMT,		&timestampformatstr },
 };
 
+/* Units to display after suitably scaled numbers for "human readable" file size output
+These should all be the same length and "left justified" */
+char	*unit1000stringtable[] = {  "_B",  "kB",  "MB",  "GB",  "TB",  "PB" };
+char	*unit1024stringtable[] = { "__B", "kiB", "MiB", "GiB", "TiB", "PiB" };
+char	**unitstringtable;
+int	humanreadablemultiple	= 0;	/* don't display 'human readable' sizes */
+
 typedef struct {	/* each object's name, modification XOR access time & size */
     char	*name;
     time_t	time_s;
@@ -161,6 +167,16 @@ time_t	starttime_ns;
 time_t	targettime_s	= DEFAULTAGE;	/* set default, 0 s, and */
 time_t	targettime_ns	= DEFAULTAGE;	/* 0 ns - find files of all ages */
 
+/* ERE: Extended Regular Expression */
+#define MAXNUMERES		4
+typedef struct {	/* preg: pre-compiled (extended) regular expression pattern buffer */
+    regex_t	compiledere;	/* compiled ERE (preg) */
+    int		matchcode;	/* REG_MATCH or REG_NOMATCH */
+} Ereinfo;
+
+Ereinfo	eretable[MAXNUMERES];
+int	numeres			= 0;
+
 int	maxnumberobjects	= INITMAXNUMOBJS;
 int	numobjsfound		= 0;
 int	numtargets		= 0;
@@ -168,7 +184,6 @@ int	returncode		= 0;
 
 /* Command line option flags - all set to false */
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
-int	regexecretcode		= REG_MATCH;		/* default is to match (not exclude) */
 int	recursiveflag		= 0;
 int	ignorecaseflag		= 0;
 int	regularfileflag		= 0;
@@ -184,7 +199,8 @@ int	sortmultiplier		= 1;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
 
-void process_directory(char *, regex_t *, int);
+/* function prototypes */
+void process_directory(char *, int);
 
 
 /*******************************************************************************
@@ -204,13 +220,13 @@ void display_usage_message(char *progname) {
     printf("  -f|--files       : regular files (default off)\n");
     printf("  -o|--others      : other files   (default off)\n");
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
-    printf("  -i|--ignore-case : case insensitive pattern match - invoke before -p option (default off)\n");
+    printf("  -i|--ignore-case : case insensitive pattern match - invoke before -p or -x option (default off)\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
-    printf("  -p|--pattern ERE : include objects with names that match the ERE (default '.*')\n");
-    printf("  -x|--exclude ERE : exclude objects with names that match the ERE\n");
+    printf("  -p|--pattern ERE : include objects with names that match the ERE. (-p & -x 'accumulate')\n");
+    printf("  -x|--exclude ERE : exclude objects with names that match the ERE. (in CLI order)\n");
     printf("  -t|--target target_path            : target path (no default)\n");
     printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
-    printf("  -V|--variable=value                : for FF_<var>=<value>\n");
+    printf("  -V|--variable=value                : for <FF_variable>=<value>\n");
     printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
     printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default)\n");
     printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time)\n");
@@ -221,7 +237,8 @@ void display_usage_message(char *progname) {
     printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer reference times (no default)\n");
     printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer reference times (no default)\n");
     printf(" Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n");
-    printf("  -h|--help        : display this help message\n");
+    printf("  -h|--human-1024  : display object sizes in 'human readable' form (eg, '1.00kiB')\n");
+    printf("  -H|--human-1000  : display object sizes in 'human readable' form (eg, '1.02kB')\n");
     printf("  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
     printf("  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n");
     printf("  -u|--units       : display units: s for seconds, B for Bytes (default off)\n");
@@ -236,16 +253,16 @@ void display_usage_message(char *progname) {
     printf(" Examples of command line arguments (parsed left to right):\n");
     printf("  -f /tmp                      # files in /tmp of any age, including future dates!\n");
     printf("  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns\n");
-    printf("  -f -m 1D -p '\\.ant$' /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n");
+    printf("  -f -p '\\.ant$' -m 1D /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n");
     printf("  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n");
     printf("  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n");
-    printf("  -dRp pat junk                # directories named junk/*pat* - reverse sort\n");
-    printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified after /etc/hosts was\n");
-    printf("  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and dirs (but\n");
+    printf("  -dRp ^yes -x no .            # directories in . named yes* unless named *no* - reverse sort\n");
+    printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified before /etc/hosts was\n");
+    printf("  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and directories (but\n");
     printf("                               # NOT files) in /var accessed >= 1h, verbose output\n");
-    printf("  -vf -m -20201231_010203.5 .  # files in . modified at or before 20201231_010203.5\n");
+    printf("  -f -m -20201231_010203.5 .   # files in . modified at or before 20201231_010203.5\n");
     printf("\n");
-    printf("findfiles Copyright (C) 2016-2022 James S. Crook\n");
+    printf("findfiles Copyright (C) 2016-2023 James S. Crook\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
     printf("This is free software, and you are welcome to redistribute it under certain conditions.\n");
     printf("This program is licensed under the terms of the GNU General Public License as published\n");
@@ -257,14 +274,16 @@ void display_usage_message(char *progname) {
 /*******************************************************************************
 Process a (file system) object - eg, a regular file, directory, symbolic
 link, fifo, special file, etc. If the object's attributes satisfy the command
-line arguments (i.e., the name matches the extended regular expression (pattern),
-the access xor modification time, etc. then, this object is appended to the
-objectinfotable. If objectinfotable is full, its size is dynamically increased.
+line arguments (i.e., the name matches the 'pattern(s)' - actually, Extended
+Regular Expression(s) or  ERE(s), the access xor modification time, etc. then,
+this object is appended to the objectinfotable. If objectinfotable is full, its
+size is dynamically increased.
 *******************************************************************************/
-void process_object(char *pathname, regex_t *extregexpptr) {
+void process_object(char *pathname) {
     struct	stat statinfo;
     char	objectname[MAXPATHLENGTH], *chptr;
     time_t	objecttime_s, objecttime_ns;
+    int		idx, includeflag = 1;
 
     /* extract the object name after the last '/' char */
     if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
@@ -273,9 +292,20 @@ void process_object(char *pathname, regex_t *extregexpptr) {
 	strcpy(objectname, pathname);
     }
 
-    if (regexec(extregexpptr, objectname, (size_t)0, NULL, 0) == regexecretcode) {
+    /* if there is/are any ERE(s), loop through them all. If _all_ entries are either
+     * '-p match' or '-x non-match', this object is selected. If even one entry is a
+     * '-p non-match' or '-x match', this object is skipped. ERE(s) are checked in CLI order.
+    */
+    for (idx=0; idx<numeres; idx++) {	/* this for loop is skipped when numeres is 0 */
+	if (regexec(&eretable[idx].compiledere, objectname, (size_t)0, NULL, 0) != eretable[idx].matchcode) {
+	    includeflag = 0;	/* -p non-match or -x match: skip this object */
+	    break;		/* no need to check any later ERE(s) */
+	}
+    }
+
+    if (includeflag) {
 	if (lstat(pathname, &statinfo) == -1) {
-	    fprintf(stderr, "process_object: Cannot access '%s'\n", pathname);
+	    fprintf(stderr, "W: process_object: Cannot access '%s'\n", pathname);
 	    returncode = 1;
 	    return;
 	}
@@ -353,26 +383,60 @@ void trim_trailing_slashes(char *pathname) {
 
 
 /*******************************************************************************
+Very large integers can be difficult to read - especially when they have no
+thousands separators. This function displays object sizes with a suitably scaled
+decimal part (a "mantissa" of sorts) and a suitable unit (eg, "GiB").  For
+example, if an object size is 1000000000B, it's displayed as "1.00MB" or "954MiB".
+*******************************************************************************/
+#define TENLIMIT	9.9999	/* Prevent printf rounding value issues with 10 */
+#define HUNDREDLIMIT	99.999	/* Prevent printf rounding value issues with 100 */
+
+void display_human_readable_size(unsigned long size) {
+    float mantissa;
+    int  unitidx = 0;
+    unsigned long divisor = 1;
+
+    /* increase divisor by multiles of humanreadablemultiple until size/divisor < humanreadablemultiple */
+    while (1) {
+	if (divisor*humanreadablemultiple > size) {
+	    break;
+	}
+	unitidx++;
+	divisor *= humanreadablemultiple;
+    }
+    mantissa = size / (float)divisor;
+
+    if (mantissa < TENLIMIT) {
+	printf(" %4.2f%s  ", mantissa, unitstringtable[unitidx]);
+    } else if (mantissa < HUNDREDLIMIT) {
+	printf(" %4.1f%s  ", mantissa, unitstringtable[unitidx]);
+    } else {
+	printf(" %4.0f%s  ", mantissa, unitstringtable[unitidx]);
+    }
+}
+
+
+/*******************************************************************************
 Process a (file system) pathname (a file, directory or "other" object).
 *******************************************************************************/
-void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
+void process_path(char *pathname, int recursiondepth) {
     struct stat	statinfo;
 
     if (!regularfileflag && !directoryflag && !otherobjectflag) {
-	fprintf(stderr, "No output target types requested for '%s'!\n",pathname);
+	fprintf(stderr, "W: No output target types requested for '%s'!\n",pathname);
 	returncode = 1;
 	return;
     }
 
     if (lstat(pathname, &statinfo) == -1) {
-	fprintf(stderr, "process_path: Cannot access '%s'\n", pathname);
+	fprintf(stderr, "W: process_path: Cannot access '%s'\n", pathname);
 	returncode = 1;
 	return;
     }
 
     if (S_ISREG(statinfo.st_mode)) {		/* process a "regular" file */
 	if (regularfileflag) {
-	    process_object(pathname, extregexpptr);
+	    process_object(pathname);
 	}
     /* process a directory or symlink to a directory if followsymlinksflag is set */
     } else if (S_ISDIR(statinfo.st_mode) || (S_ISLNK(statinfo.st_mode) && followsymlinksflag)) {
@@ -380,22 +444,22 @@ void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
 	   trim_trailing_slashes(pathname);
 	}
 	if (directoryflag) {
-	    process_object(pathname, extregexpptr);
+	    process_object(pathname);
 	}
 
 	/* Is this a command line argument (directory or symlink/) AND maxrecursiondepth > 0 */
 	if (recursiondepth == 0 && maxrecursiondepth > 0) {
-	    process_directory(pathname, extregexpptr, recursiondepth);
+	    process_directory(pathname, recursiondepth);
 	} else if (recursiveflag) {
 	    if (recursiondepth < maxrecursiondepth) {
-		process_directory(pathname, extregexpptr, recursiondepth);
+		process_directory(pathname, recursiondepth);
 	    } else if (verbosity > 1) {
-		fprintf(stderr, "w: Traversing directory '%s' (depth %d) would exceed max depth of %d\n",
+		fprintf(stderr, "W: Traversing directory '%s' (depth %d) would exceed max depth of %d\n",
 		    pathname, recursiondepth, maxrecursiondepth);
 	    }
 	}
     } else if (otherobjectflag) {		/* process "other" object types */
-	process_object(pathname, extregexpptr);
+	process_object(pathname);
     }
 }
 
@@ -404,7 +468,7 @@ void process_path(char *pathname, regex_t *extregexpptr, int recursiondepth) {
 Process a directory. Open it, read all it's entries (objects) and call
 process_path for each one (EXCEPT '.' and '..') and close it.
 *******************************************************************************/
-void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth) {
+void process_directory(char *pathname, int recursiondepth) {
     DIR			*dirptr;
     struct dirent	*direntptr;
     char		newpathname[MAXPATHLENGTH];
@@ -417,7 +481,7 @@ void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth
     }
 
     if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
-	fprintf(stderr, "opendir error");
+	fprintf(stderr, "W: opendir error");
 	perror(pathname);
 	returncode = 1;
 	return;
@@ -428,7 +492,7 @@ void process_directory(char *pathname, regex_t *extregexpptr, int recursiondepth
 	    /* create newpathname from pathname/objectname. (sprintf generates a gcc warning) */
 	    strcpy(newpathname, dirpath);
 	    strcat(newpathname, direntptr->d_name);
-	    process_path(newpathname, extregexpptr, recursiondepth+1);
+	    process_path(newpathname, recursiondepth+1);
 	}
     }
 
@@ -533,7 +597,7 @@ void list_objects() {
 		    if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
 			*chptr = NEGATIVESIGNCHAR; /* %07ld : OK for 999999 days - until the year 4707 */
 		    } else {
-			fprintf(stderr, "Error: Insuficient 'days' field width in '%s'\n", ageformatstr);
+			fprintf(stderr, "E: Insuficient 'days' field width in '%s'\n", ageformatstr);
 			exit(1);
 		    }
 		}
@@ -544,13 +608,18 @@ void list_objects() {
 		}
 		printf(" ");
 	    }
-	    printf(" %14lu%c  ", objectinfotable[foundidx].size, bytesunitchar);
+
+	    if (humanreadablemultiple != 0) {
+		display_human_readable_size(objectinfotable[foundidx].size);
+	    } else {
+		printf(" %14lu%c  ", objectinfotable[foundidx].size, bytesunitchar);
+	    }
 	}
 	printf("%s\n", objectinfotable[foundidx].name);
     }
 
     if (numtargets == 0 && verbosity > 1) {
-	fprintf(stderr, "Warning: no targets were specified on the command line!\n");
+	fprintf(stderr, "W: No targets were specified on the command line!\n");
     }
 }
 
@@ -565,7 +634,7 @@ void check_integer(char *relativeagestr) {
 
     for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
 	if (!isdigit(*chptr) && *chptr != NEGATIVESIGNCHAR && *chptr != POSITIVESIGNCHAR ) {
-	    fprintf(stderr, "Warning: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
+	    fprintf(stderr, "W: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
 	}
     }
 }
@@ -583,7 +652,7 @@ int convert_string_to_ns(char *fractionstr) {
 	if (isdigit(*fromchptr)) {
 	    *tochptr++ = *fromchptr++;
 	} else {
-	    fprintf(stderr, "Illegal character ('%c') in time fraction string '%s'\n", *fromchptr, fractionstr);
+	    fprintf(stderr, "E: Illegal character ('%c') in time fraction string '%s'\n", *fromchptr, fractionstr);
 	    exit(1);
 	}
     }
@@ -656,7 +725,7 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 	case 'Y': check_integer(timeinfostr);
 	    timeinfoptr->tm_year -= atoi(timeinfostr);
 	    break;
-	default: fprintf(stderr, "Error: Illegal time unit '%c'\n", timeunitchar);
+	default: fprintf(stderr, "E: Illegal time unit '%c'\n", timeunitchar);
 	    exit(1);
     }
     targettime_s = mktime(timeinfoptr);
@@ -705,20 +774,20 @@ void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm
     *time_s_ptr = mktime(timeinfoptr);	/* convert the breakdowns time structure to the number of seconds */
 
     if (decimalchptr == NULL) {
-	fprintf(stderr, "Error: bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
+	fprintf(stderr, "E: bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
 	exit(1);
     } else if (*decimalchptr == DECIMALSEPARATORCHAR) {	/* if a DECIMALSEPARATORCHAR (decimal point) follows a valid timestamp */
 	/* Ensure that the last characters of formatstr (eg, %Y%m%d_%H%M%S) are SECONDSFORMATSTR ("%S") */
 	timestampformatstrlen = strlen(formatstr);
 	if (timestampformatstrlen < sizeof(SECONDSFORMATSTR)-1 ||
 		strcmp(formatstr+timestampformatstrlen-(sizeof(SECONDSFORMATSTR)-1), SECONDSFORMATSTR)) {
-	    fprintf(stderr, "Error: last two characters of '%s' must be '%s' when using fractions of seconds\n",
+	    fprintf(stderr, "E: last two characters of '%s' must be '%s' when using fractions of seconds\n",
 		formatstr, SECONDSFORMATSTR);
 	    exit(1);
 	}
 	*time_ns_ptr = convert_string_to_ns(decimalchptr+1);
     } else if (*decimalchptr != '\0') {
-	fprintf(stderr, "Error: Illegal timestamp character(s) starting at '%c' in timestamp '%s'\n",
+	fprintf(stderr, "E: Illegal timestamp character(s) starting at '%c' in timestamp '%s'\n",
 	    *decimalchptr, timeinfostr);
 	exit(1);
     }
@@ -852,7 +921,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 	    targettime_ns = statinfo.st_atim.tv_nsec;
 	}
     } else {
-	fprintf(stderr, "Cannot access '%s'\n", targetobjectstr);
+	fprintf(stderr, "E: Cannot access '%s'\n", targetobjectstr);
 	exit(1);
     }
 
@@ -878,10 +947,15 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 Set the extended regular expression (pattern) to be used to match the object names.
 *******************************************************************************/
 #define MAXREGCOMPERRMSGLEN	64
-void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr, int ereretcode) {
+void set_extended_regular_expression(char *erestr, int matchcode) {
     char	regcomperrmsg[MAXREGCOMPERRMSGLEN];
     int		cflags;
     int		regcompretval;
+
+    if (numeres >= MAXNUMERES) {	/* number of EREs */
+	printf("Only %d extended regular expressions are allowed\n", MAXNUMERES);
+	exit(1);
+    }
 
     if (ignorecaseflag) {
 	cflags = REG_EXTENDED|REG_ICASE;
@@ -889,12 +963,12 @@ void set_extended_regular_expression(char *extregexpstr, regex_t *extregexpptr, 
 	cflags = REG_EXTENDED;
     }
 
-    if ((regcompretval=regcomp(extregexpptr, extregexpstr, cflags)) != 0) {
-	regerror(regcompretval, extregexpptr, regcomperrmsg, MAXREGCOMPERRMSGLEN);
-	printf("Regular expression error for '%s': %s\n", extregexpstr, regcomperrmsg);
+    if ((regcompretval=regcomp(&eretable[numeres].compiledere, erestr, cflags)) != 0) {
+	regerror(regcompretval, &eretable[numeres].compiledere, regcomperrmsg, MAXREGCOMPERRMSGLEN);
+	printf("Regular expression error for '%s': %s\n", erestr, regcomperrmsg);
 	exit(1);
     }
-    regexecretcode = ereretcode;
+    eretable[numeres++].matchcode = matchcode;
 }
 
 
@@ -909,7 +983,7 @@ void command_line_long_to_short(char *longopt) {
     char	*equalptr;
     unsigned	optiontableidx;
     int		optionfoundflag = 0;
-    char	*optiontblcharptr, *longoptcharptr;
+    char	*optiontablecharptr, *longoptcharptr;
 
     typedef struct {
 	char	*shortform;
@@ -924,7 +998,8 @@ void command_line_long_to_short(char *longopt) {
 	{ "-d", "--directories"	, 4 },
 	{ "-x", "--exclude"	, 3 },
 	{ "-f", "--files"	, 3 },
-	{ "-h", "--help"	, 3 },
+	{ "-h", "--human-1024"	,11 },
+	{ "-H", "--human-1000"	,11 },
 	{ "-i", "--ignore-case"	, 3 },
 	{ "-m", "--mod-info"	, 7 },
 	{ "-M", "--mod-ref"	, 7 },
@@ -946,15 +1021,15 @@ void command_line_long_to_short(char *longopt) {
 	if (!strncmp(longopt, optiontable[optiontableidx].longform, optiontable[optiontableidx].minuniqlen)) {
 
 	    /* check for invalid characters in (possibly less than the full) --longopt */
-	    optiontblcharptr = optiontable[optiontableidx].longform;
+	    optiontablecharptr = optiontable[optiontableidx].longform;
 	    longoptcharptr = longopt;
-	    while (*optiontblcharptr && *longoptcharptr && *optiontblcharptr == *longoptcharptr &&
+	    while (*optiontablecharptr && *longoptcharptr && *optiontablecharptr == *longoptcharptr &&
 		*longoptcharptr != '=') {
-		optiontblcharptr++;
+		optiontablecharptr++;
 		longoptcharptr++;
 	    }
 	    if (*longoptcharptr != '\0' && *longoptcharptr != '=') {
-		fprintf(stderr, "Bad command line option '%s', aborting\n", longopt);
+		fprintf(stderr, "E: Bad command line option '%s', aborting\n", longopt);
 		exit(1);
 	    }
 
@@ -974,7 +1049,7 @@ void command_line_long_to_short(char *longopt) {
 
     /* if '--bogus_option' or '--valid_option=' was found */
     if (!optionfoundflag) {
-	fprintf(stderr, "Illegal command line option '%s', aborting\n", longopt);
+	fprintf(stderr, "E: Illegal command line option '%s', aborting\n", longopt);
 	exit(1);
     }
 }
@@ -1051,12 +1126,12 @@ void set_cmd_line_envvar(char *inputstr) {
 	    }
 	}
     } else {
-	fprintf(stderr, "Illegal variable assignment (missing '='): '%s'\n", inputstr);
+	fprintf(stderr, "E: Illegal variable assignment (missing '='): '%s'\n", inputstr);
 	exit(1);
     }
 
     if (!foundflag) {
-	fprintf(stderr, "No such variable '%s'\n", inputstr);
+	fprintf(stderr, "E: No such variable '%s'\n", inputstr);
 	exit(1);
     }
 }
@@ -1102,7 +1177,6 @@ int main(int argc, char *argv[]) {
     extern char	*optarg;
     extern int	optind, optopt, opterr;
     int		optchar, optidx;
-    regex_t	extregexp;
 
     setlocale(LC_ALL, getenv("LANG"));
     setlocale(LC_NUMERIC, "en_US.UTF-8");	/* always use '.' for 'decimal points' */
@@ -1126,7 +1200,6 @@ int main(int argc, char *argv[]) {
 
     grab_environment_variables();
     set_starttime();
-    set_extended_regular_expression(DEFAULTERE, &extregexp, REG_MATCH);	/* set default */
 
     /* Both while loops and the if (below) are required because command line options
     and arguments can be interspersed and are processed in (left-to-right) order */
@@ -1140,25 +1213,26 @@ int main(int argc, char *argv[]) {
 		case 'i': ignorecaseflag	= !ignorecaseflag;				break;
 		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
 		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
-		case 'p': set_extended_regular_expression(optarg, &extregexp, REG_MATCH);	break;
-		case 'x': set_extended_regular_expression(optarg, &extregexp, REG_NOMATCH);	break;
+		case 'p': set_extended_regular_expression(optarg, REG_MATCH); 			break;
+		case 'x': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
 		case 'A': set_target_time_by_object_time(optarg, optchar);			break;
 		case 'D': maxrecursiondepth = MAX(0, atoi(optarg));				break;
 		case 'M': set_target_time_by_object_time(optarg, optchar);			break;
 		case 'V': set_cmd_line_envvar(optarg);						break;
-		case 'h': display_usage_message(argv[0]); exit(0);				break;
+		case 'h': humanreadablemultiple = 1024; unitstringtable = unit1024stringtable;	break;
+		case 'H': humanreadablemultiple = 1000; unitstringtable = unit1000stringtable;	break;
 		case 'n': displaynsecflag = 1;							break;
 		case 's': displaysecondsflag = 1;						break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;
 		case 'v': verbosity++;								break;
 		case 'L': followsymlinksflag = 1;						break;
 		case 'R': sortmultiplier = -1;							break;
-		case 't': process_path(optarg, &extregexp, 0); numtargets++;			break;
+		case 't': process_path(optarg, 0); numtargets++;				break;
 	    }
 	}
 
 	if (optind < argc) {	/* See above comment. Yes, this is required! */
-	    process_path(argv[optind], &extregexp, 0);
+	    process_path(argv[optind], 0);
 	    numtargets++;
 	    optind++;
 	}
@@ -1171,8 +1245,14 @@ int main(int argc, char *argv[]) {
 
     list_objects();
     fflush(stdout);
+
     if (verbosity > 3) {
 	list_envvartable();
     }
+
+    if (numtargets == 0) {
+	fprintf(stderr, "W: No target have been specified!\n");
+    }
+
     return returncode;
 }

@@ -1083,10 +1083,10 @@ i:    FF_TIMESTAMPFORMAT='%Y%m%d_%H%M%S'              # default
 ========== [findfiles -vvvvf -m 1.1234.56789s         DirL1] (FF_STARTTIME=20220301_000010.5) ==========
 i: set starttime to '20220301_000010.5' with environment variable FF_STARTTIME
 i: start time:       1646092810.500000000s ~= Tue Mar 01 00:00:10 2022 UTC +0000
-Illegal character ('.') in time fraction string '1234.5678'
+E: Illegal character ('.') in time fraction string '1234.5678'
 
 ========== [findfiles -vvvvf -m 1.1234x56789s         DirL1] (FF_STARTTIME=20220301_000010.5) ==========
 i: set starttime to '20220301_000010.5' with environment variable FF_STARTTIME
 i: start time:       1646092810.500000000s ~= Tue Mar 01 00:00:10 2022 UTC +0000
-Illegal character ('x') in time fraction string '1234x5678'
+E: Illegal character ('x') in time fraction string '1234x5678'
 

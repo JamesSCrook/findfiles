@@ -1,4 +1,19 @@
 =============================================================================================
+v3.1.0 Fri Mar 10 13:51:05 AEDT 2023
+
+1. Retired -h/--help options. findfiles with no arguments produces the usage message already.
+
+2. Added 'human readable' size options: -h/--human-1024 for 1.23MiB and -H/--human1000 for 93.6GB
+
+3. Allow multiple -p/--pattern and -x/--exclude that 'accumulate' (logical and).
+
+4. Changed all error messages to start with "E: ...", and warnings with "W: ...".
+
+5. Added a warning when no targets are specified.
+
+6. Adjusted the usage message to corresponde to the above changes and corrected one error.
+
+=============================================================================================
 v 3.0.1 Thu 06 Jan 2022 07:57:59 AEDT
 
 1. Added the -x/--exclude option to exclude matched patters (effectively not -p/--pattern).
@@ -15,7 +30,7 @@ v 3.0.1 Thu 06 Jan 2022 07:57:59 AEDT
 4. Updated findfiles_regression_test.sh for version 3+ and made it more robust.
 
 =============================================================================================
-v 3.0.0 Sun 02 Jan 2022 07:38:47 AEDT
+v3.0.0 Sun 02 Jan 2022 07:38:47 AEDT
 
 Changes that are _NOT_ backward compatible:
 
