@@ -1,4 +1,13 @@
 =============================================================================================
+v3.1.1 Tue Mar 14 11:20:03 AEDT 2023
+
+1. Changed -p & -x to (re)initialize the ERE pattern (buffer) - as it was <= 3.0.1.
+
+2. Introduced -P|--and-pattern & -X|--and-exclude for logical and of include/exclude EREs.
+
+3. Cosmetic changes.
+
+=============================================================================================
 v3.1.0 Fri Mar 10 13:51:05 AEDT 2023
 
 1. Retired -h/--help options. findfiles with no arguments produces the usage message already.

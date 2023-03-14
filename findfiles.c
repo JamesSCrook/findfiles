@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.1.0"
+#define PROGRAMVERSIONSTRING	"3.1.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -124,7 +124,7 @@ last access and/or last modification times are both rare and uninteresting.
 #define FF_STARTTIMESTR		"FF_STARTTIME"
 #define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforia:m:p:t:x:A:D:M:V:hHnsuRLv"
+#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHnsuLRv"
 
 typedef struct {
     char	*name;
@@ -220,10 +220,12 @@ void display_usage_message(char *progname) {
     printf("  -f|--files       : regular files (default off)\n");
     printf("  -o|--others      : other files   (default off)\n");
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
-    printf("  -i|--ignore-case : case insensitive pattern match - invoke before -p or -x option (default off)\n");
+    printf("  -i|--ignore-case : case insensitive pattern match - use before -p|-P|-x|-X (default off)\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
-    printf("  -p|--pattern ERE : include objects with names that match the ERE. (-p & -x 'accumulate')\n");
-    printf("  -x|--exclude ERE : exclude objects with names that match the ERE. (in CLI order)\n");
+    printf("  -p|--pattern     ERE : (re)initialize name search to include objects matching this ERE\n");
+    printf("  -P|--and-pattern ERE : extend name search to inclued objects also matching this ERE (logical and)\n");
+    printf("  -x|--exclude     ERE : (re)initialize name search to exclude objects matching this ERE\n");
+    printf("  -X|--and-exclude ERE : extend name search to exclued objects also matching this ERE (logical and)\n");
     printf("  -t|--target target_path            : target path (no default)\n");
     printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
     printf("  -V|--variable=value                : for <FF_variable>=<value>\n");
@@ -335,13 +337,13 @@ void process_object(char *pathname) {
 		    maxnumberobjects += MAXNUMOBJSINCVAL;
 		}
 		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
-		    perror("realloc failed");
+		    perror("E: insufficient memory - realloc failed");
 		    exit(1);
 		}
 	    }
 
 	    if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
-		perror("malloc failed");
+		perror("E: insufficient memory - malloc failed");
 		exit(1);
 	    }
 	    strcpy(objectinfotable[numobjsfound].name, pathname);
@@ -953,7 +955,7 @@ void set_extended_regular_expression(char *erestr, int matchcode) {
     int		regcompretval;
 
     if (numeres >= MAXNUMERES) {	/* number of EREs */
-	printf("Only %d extended regular expressions are allowed\n", MAXNUMERES);
+	printf("E: Only %d extended regular expressions are allowed\n", MAXNUMERES);
 	exit(1);
     }
 
@@ -965,7 +967,7 @@ void set_extended_regular_expression(char *erestr, int matchcode) {
 
     if ((regcompretval=regcomp(&eretable[numeres].compiledere, erestr, cflags)) != 0) {
 	regerror(regcompretval, &eretable[numeres].compiledere, regcomperrmsg, MAXREGCOMPERRMSGLEN);
-	printf("Regular expression error for '%s': %s\n", erestr, regcomperrmsg);
+	printf("E: Regular expression error for '%s': %s\n", erestr, regcomperrmsg);
 	exit(1);
     }
     eretable[numeres++].matchcode = matchcode;
@@ -994,6 +996,8 @@ void command_line_long_to_short(char *longopt) {
     Optiontype optiontable[] = {
 	{ "-a", "--acc-info"	, 7 },
 	{ "-A", "--acc-ref"	, 7 },
+	{ "-P", "--and-pattern" , 7 },
+	{ "-X", "--and-exclude"	, 7 },
 	{ "-D", "--depth"	, 4 },
 	{ "-d", "--directories"	, 4 },
 	{ "-x", "--exclude"	, 3 },
@@ -1183,11 +1187,11 @@ int main(int argc, char *argv[]) {
 
     if (argc <= 1) {
 	display_usage_message(argv[0]);
-	exit(1);
+	exit(0);
     }
 
     if ((objectinfotable=(Objectinfo*)calloc(INITMAXNUMOBJS, sizeof(Objectinfo))) == NULL) {
-	perror("Could not calloc initial object info table");
+	perror("E: Could not calloc initial object info table");
 	exit(1);
     }
 
@@ -1211,23 +1215,25 @@ int main(int argc, char *argv[]) {
 		case 'o': otherobjectflag	= !otherobjectflag;				break;
 		case 'r': recursiveflag		= !recursiveflag;				break;
 		case 'i': ignorecaseflag	= !ignorecaseflag;				break;
+		case 'p': numeres = 0; set_extended_regular_expression(optarg, REG_MATCH); 	break;
+		case 'P': set_extended_regular_expression(optarg, REG_MATCH); 			break;
+		case 'x': numeres = 0; set_extended_regular_expression(optarg, REG_NOMATCH);	break;
+		case 'X': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
+		case 't': process_path(optarg, 0); numtargets++;				break;
+		case 'D': maxrecursiondepth = MAX(0, atoi(optarg));				break;
+		case 'V': set_cmd_line_envvar(optarg);						break;
 		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
 		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
-		case 'p': set_extended_regular_expression(optarg, REG_MATCH); 			break;
-		case 'x': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
 		case 'A': set_target_time_by_object_time(optarg, optchar);			break;
-		case 'D': maxrecursiondepth = MAX(0, atoi(optarg));				break;
 		case 'M': set_target_time_by_object_time(optarg, optchar);			break;
-		case 'V': set_cmd_line_envvar(optarg);						break;
 		case 'h': humanreadablemultiple = 1024; unitstringtable = unit1024stringtable;	break;
 		case 'H': humanreadablemultiple = 1000; unitstringtable = unit1000stringtable;	break;
 		case 'n': displaynsecflag = 1;							break;
 		case 's': displaysecondsflag = 1;						break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;
-		case 'v': verbosity++;								break;
 		case 'L': followsymlinksflag = 1;						break;
 		case 'R': sortmultiplier = -1;							break;
-		case 't': process_path(optarg, 0); numtargets++;				break;
+		case 'v': verbosity++;								break;
 	    }
 	}
 

@@ -22,7 +22,7 @@
 ################################################################################
 
 ################################################################################
-# Version 1.0	2019/04/23
+# 2023/03/14 - for findfiles version 3.1.1
 #
 # This script tests two versions of findfiles to detect differences in the
 # output they produce when they are called "at the same time" (see below) and
@@ -71,8 +71,8 @@ STDERRDIFFS=/tmp/ff_rt_stderr.dif
 # EXE1, EXE2 and ARGS are global variables, so compare has no arguments.
 ################################################################################
 function compare {
-    $EXE1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
-    $EXE2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
+    eval $EXE1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
+    eval $EXE2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
     wait
     
     diff $STDOUTFILE1 $STDOUTFILE2 > $STDOUTDIFFS
@@ -88,20 +88,18 @@ function compare {
     # handle all 4 cases of stdouts and stderr matching or not
     if [ $STDOUTDIFFRETVAL -eq 0 ]; then	# do the stdouts match?
 	if [ $STDERRDIFFRETVAL -eq 0 ]; then	# the stdouts match, do two stderrs match too?
-	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "$ARGS"
+	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "[$ARGS]"
 	else					# stdouts match, stderrs differ - display those details
 	    DIFFCOUNT=$((DIFFCOUNT+1))
 	    echo "=================== stderr is different ====================== $DIFFCOUNT"
-	    echo "ARGS=[$ARGS]"
-	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "$ARGS"
+	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "[$ARGS]"
 	    echo "------------------- stderr diffs ---------------------"
 	    cat $STDERRDIFFS
 	fi
     else
 	DIFFCOUNT=$((DIFFCOUNT+1))		# the stdouts differ, display those details
 	echo "=================== stdout is different ====================== $DIFFCOUNT"
-	echo "ARGS=[$ARGS]"
-	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "$ARGS"
+	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "[$ARGS]"
 	echo "------------------- stdout diffs ---------------------"
 	cat $STDOUTDIFFS
 	if [ $STDERRDIFFRETVAL -ne 0 ]; then	# if the stderr also differs, display those details
@@ -166,7 +164,8 @@ for ARGS in \
 \
     "-dfv -p s /" \
     "-dfvr -ip e -t /etc/X11" \
-    "-fp '^[pgh]' -x '^passwd$' -x '^group-$' /etc" \
+    "-fp '^[ghp]' -X '^group$' -X '^passwd-$' /etc" \
+    "-fp '^tty' /dev -p ^passwd /etc" \
 \
     "-vfh /etc" \
     "-vfH /etc" \
