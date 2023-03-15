@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.1.1"
+#define PROGRAMVERSIONSTRING	"3.1.2"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -258,7 +258,7 @@ void display_usage_message(char *progname) {
     printf("  -f -p '\\.ant$' -m 1D /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n");
     printf("  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n");
     printf("  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n");
-    printf("  -dRp ^yes -x no .            # directories in . named yes* unless named *no* - reverse sort\n");
+    printf("  -dRp ^yes -X no .            # directories in . named yes* unless named *no* - reverse sort\n");
     printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified before /etc/hosts was\n");
     printf("  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and directories (but\n");
     printf("                               # NOT files) in /var accessed >= 1h, verbose output\n");

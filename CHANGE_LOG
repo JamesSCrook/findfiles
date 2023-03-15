@@ -1,3 +1,8 @@
+v3.1.2 Thu Mar 16 07:20:00 AEDT 2023
+
+1. Corrected the usage message: changed "-dRp ^yes -x no ." to "-dRp ^yes -X no ."
+   You meant that's it? Sadly, yep.
+
 =============================================================================================
 v3.1.1 Tue Mar 14 11:20:03 AEDT 2023
 
