@@ -36,7 +36,7 @@ Like the OS, findfiles stores each of these in two separate variables:
  "starttime"  is actually  starttime_s and  starttime_ns
  "targettime" is actually targettime_s and targettime_ns
  "objecttime" is actually objecttime_s and objecttime_ns
-Thes are the number of seconds (s) & nanoseconds (ns) since "the epoch"
+These are the number of seconds (s) & nanoseconds (ns) since "the epoch"
 (1970-01-01 00:00:00.000000000).
 
 findfiles sets "starttime" to the current system time when it starts.
@@ -61,7 +61,7 @@ the numerical value and unit ("10m", in both cases above) sets "targettime" to
 10 minutes before "starttime", and "-" causes findfiles to list objects last
 modified/accessed more recently ("newer") than "targettime".
 
-The optional last modificaton reference object ("-M") and last access reference
+The optional last modification reference object ("-M") and last access reference
 object ("-A") use the minus sign ("-") in the same way as "-m" and "-a". I.e.,
  "-fA -ref_file" : find files accessed after ref_file was (after "targettime")
  "-fA  ref_file" : find files accessed before ref_file was (before "targettime")
@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.1.2"
+#define PROGRAMVERSIONSTRING	"3.1.3"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -223,9 +223,9 @@ void display_usage_message(char *progname) {
     printf("  -i|--ignore-case : case insensitive pattern match - use before -p|-P|-x|-X (default off)\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
     printf("  -p|--pattern     ERE : (re)initialize name search to include objects matching this ERE\n");
-    printf("  -P|--and-pattern ERE : extend name search to inclued objects also matching this ERE (logical and)\n");
+    printf("  -P|--and-pattern ERE : extend name search to include objects also matching this ERE (logical and)\n");
     printf("  -x|--exclude     ERE : (re)initialize name search to exclude objects matching this ERE\n");
-    printf("  -X|--and-exclude ERE : extend name search to exclued objects also matching this ERE (logical and)\n");
+    printf("  -X|--and-exclude ERE : extend name search to exclude objects also matching this ERE (logical and)\n");
     printf("  -t|--target target_path            : target path (no default)\n");
     printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
     printf("  -V|--variable=value                : for <FF_variable>=<value>\n");
@@ -599,7 +599,7 @@ void list_objects() {
 		    if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
 			*chptr = NEGATIVESIGNCHAR; /* %07ld : OK for 999999 days - until the year 4707 */
 		    } else {
-			fprintf(stderr, "E: Insuficient 'days' field width in '%s'\n", ageformatstr);
+			fprintf(stderr, "E: Insufficient 'days' field width in '%s'\n", ageformatstr);
 			exit(1);
 		    }
 		}
@@ -979,7 +979,7 @@ Replace (overwrite!) a long format command line option (argv[c]) with its short
 format equivalent. E.g., replace '--files' with '-f' and '--pattern=foo' with
 '-pfoo'. Note: getopt_long doesn't process arguments in left-to-right order!
 Below, --longopt only requires enough of the first part (e.g., --long) to be
-uninque (à la getopt_long).
+unique (à la getopt_long).
 *******************************************************************************/
 void command_line_long_to_short(char *longopt) {
     char	*equalptr;
@@ -1244,7 +1244,7 @@ int main(int argc, char *argv[]) {
 	}
     }
 
-    /* Display starttime unless it's already been displayed (ie, by setting targettime and/or starttime) */
+    /* Display starttime unless it's already been displayed (i.e., by setting targettime and/or starttime) */
     if (verbosity > 1 && targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE && !strcmp(starttimestr, NOWSTR)) {
 	list_starttime();
     }
