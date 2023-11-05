@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.1.3"
+#define PROGRAMVERSIONSTRING	"3.2.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -919,7 +919,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 	    targettime_ns = statinfo.st_mtim.tv_nsec;
 	} else {
 	    accesstimeflag = 1;
-	    targettime_s = statinfo.st_mtime;
+	    targettime_s = statinfo.st_atime;
 	    targettime_ns = statinfo.st_atim.tv_nsec;
 	}
     } else {
