@@ -1,4 +1,25 @@
 =============================================================================================
+v3.2.1 Mon 01 Jan 2024 12:14:05 AEDT
+
+1. -A verbose output incorrectly displayed "modified ...". Corrected it to "accessed ...".
+
+2. Added some extra verbose info output for -A and -M.
+
+3. Changed -L/--symlinks from a FLAG to "toggleable" OPTION.
+
+4. Made displaying "human readable" (-h/-H) file sizes more efficient. Gotta be honest, I
+   didn't test terabyte or petabyte files size output...
+
+5. Cosmetic changes: clarified the usage message and fixed another spelling error.
+   Trivial tweaks to make Cppcheck mostly happy.
+
+6. Made findfiles_regression_test.sh clean up its temporary files.
+
+7. It _appears_ that times since the epoch with non-zero nanosecond values were until recently
+   rounded to the nearest second - now it appears that they are always rounded down - TBC.
+   Therefore, some ("human") timestamps in findfiles_reference_test_output differ by 1s.
+
+=============================================================================================
 v3.2.0 Sun Nov  5 14:03:11 AEDT 2023
 
 1. -A incorrectly set targettime - since v0.0.1! Recent versions: erroneously set it to

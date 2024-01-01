@@ -59,12 +59,12 @@ fi
 
 export FF_STARTTIME=$(date +%Y%m%d_%H%M%S).5
 
-STDOUTFILE1=/tmp/ff_rt_1.out
-STDERRFILE1=/tmp/ff_rt_1.err
-STDOUTFILE2=/tmp/ff_rt_2.out
-STDERRFILE2=/tmp/ff_rt_2.err
-STDOUTDIFFS=/tmp/ff_rt_stdout.dif
-STDERRDIFFS=/tmp/ff_rt_stderr.dif
+STDOUTFILE1=/tmp/ff_rt_1_$$.out
+STDERRFILE1=/tmp/ff_rt_1_$$.err
+STDOUTFILE2=/tmp/ff_rt_2_$$.out
+STDERRFILE2=/tmp/ff_rt_2_$$.err
+STDOUTDIFFS=/tmp/ff_rt_stdout_$$.dif
+STDERRDIFFS=/tmp/ff_rt_stderr_$$.dif
 
 ################################################################################
 # Call the both versions of findfiles with the same arguments asyncrhonously.
@@ -229,5 +229,7 @@ done
 echo "==============================================="
 echo "$DIFFCOUNT differences/problems/errors"
 echo "==============================================="
+
+rm -f $STDOUTFILE1 $STDERRFILE1 $STDOUTFILE2 $STDERRFILE2 $STDOUTDIFFS $STDERRDIFFS
 
 exit 0

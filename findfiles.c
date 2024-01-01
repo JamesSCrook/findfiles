@@ -2,7 +2,7 @@
 ********************************************************************************
 
 findfiles: find files based on various selection criteria
-Copyright (C) 2016-2023 James S. Crook
+Copyright (C) 2016-2024 James S. Crook
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.2.0"
+#define PROGRAMVERSIONSTRING	"3.2.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -147,11 +147,33 @@ Envvar envvartable[] = {
 };
 
 /* Units to display after suitably scaled numbers for "human readable" file size output
-These should all be the same length and "left justified" */
-char	*unit1000stringtable[] = {  "_B",  "kB",  "MB",  "GB",  "TB",  "PB" };
-char	*unit1024stringtable[] = { "__B", "kiB", "MiB", "GiB", "TiB", "PiB" };
-char	**unitstringtable;
-int	humanreadablemultiple	= 0;	/* don't display 'human readable' sizes */
+These should all be the same length and have no whitespace (sort of "right justified"). */
+typedef struct {
+    char	unitstring[4];
+    size_t	sizelimit;
+} Unitinfo;
+
+Unitinfo humanunit1024table[] = {
+    { "__B",                               1024L },
+    { "kiB",                         1024L*1024L },
+    { "MiB",                   1024L*1024L*1024L },
+    { "GiB",             1024L*1024L*1024L*1024L },
+    { "TiB",       1024L*1024L*1024L*1024L*1024L },
+    { "PiB", 1024L*1024L*1024L*1024L*1024L*1024L },
+};
+
+/* Recommendation: keep the same number of Unitinfo entries in both the 1024 and the 1000 tables */
+Unitinfo humanunit1000table[] = {
+    { "_B",                                1000L },
+    { "kB",                          1000L*1000L },
+    { "MB",                    1000L*1000L*1000L },
+    { "GB",              1000L*1000L*1000L*1000L },
+    { "TB",        1000L*1000L*1000L*1000L*1000L },
+    { "PB",  1000L*1000L*1000L*1000L*1000L*1000L },
+};
+
+Unitinfo	*humanunittable	= NULL;
+size_t		numhumanunits;
 
 typedef struct {	/* each object's name, modification XOR access time & size */
     char	*name;
@@ -206,7 +228,7 @@ void process_directory(char *, int);
 /*******************************************************************************
 Display the usage (help) message.
 *******************************************************************************/
-void display_usage_message(char *progname) {
+void display_usage_message(const char *progname) {
     printf("usage (version %s):\n", PROGRAMVERSIONSTRING);
     printf("%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n", progname);
     printf(" Some OPTIONs require arguments - these are:\n");
@@ -221,6 +243,7 @@ void display_usage_message(char *progname) {
     printf("  -o|--others      : other files   (default off)\n");
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
     printf("  -i|--ignore-case : case insensitive pattern match - use before -p|-P|-x|-X (default off)\n");
+    printf("  -L|--symlinks    : follow symbolic Links\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
     printf("  -p|--pattern     ERE : (re)initialize name search to include objects matching this ERE\n");
     printf("  -P|--and-pattern ERE : extend name search to include objects also matching this ERE (logical and)\n");
@@ -230,21 +253,20 @@ void display_usage_message(char *progname) {
     printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
     printf("  -V|--variable=value                : for <FF_variable>=<value>\n");
     printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
-    printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= ages (no default)\n");
-    printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= ages (default 0s: any time)\n");
+    printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= access ages (no default)\n");
+    printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= mod ages (default 0s: any time)\n");
     printf("  Times are absolute; eg, '-20211231_153000' & '20211231_153000' (using locale's timezone)\n");
-    printf("   -a|--acc-info [-|+]access_time       : - for older/=, [+] for newer/= times (no default)\n");
-    printf("   -m|--mod-info [-|+]modification_time : - for older/=, [+] for newer/= times (no default)\n");
-    printf("  Reference times are absolute; eg: '-/etc/hosts' & '/etc/hosts'\n");
-    printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer reference times (no default)\n");
-    printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer reference times (no default)\n");
+    printf("   -a|--acc-info [-|+]access_time       : - for older/=, [+] for newer/= access times (no default)\n");
+    printf("   -m|--mod-info [-|+]modification_time : - for older/=, [+] for newer/= mod times (no default)\n");
+    printf("  Reference times are absolute; eg: '-/tmp/f' & '/tmp/f'\n");
+    printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer access times (no default)\n");
+    printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer mod times (no default)\n");
     printf(" Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n");
     printf("  -h|--human-1024  : display object sizes in 'human readable' form (eg, '1.00kiB')\n");
     printf("  -H|--human-1000  : display object sizes in 'human readable' form (eg, '1.02kB')\n");
     printf("  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
     printf("  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n");
     printf("  -u|--units       : display units: s for seconds, B for Bytes (default off)\n");
-    printf("  -L|--symlinks    : Follow symbolic links\n");
     printf("  -R|--reverse     : Reverse the (time) order of the output (default off)\n");
     printf(" Verbosity: (May be specified more than once for additional information)\n");
     printf("  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n");
@@ -254,17 +276,17 @@ void display_usage_message(char *progname) {
     printf("  Note: Specify Y & M with integer values. W, D, h, m & s can also take floating point values\n");
     printf(" Examples of command line arguments (parsed left to right):\n");
     printf("  -f /tmp                      # files in /tmp of any age, including future dates!\n");
-    printf("  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month, verbose output with ns\n");
+    printf("  -vfn -m -1M /tmp             # files in /tmp modified <= 1 month ago, verbose output with ns\n");
     printf("  -f -p '\\.ant$' -m 1D /tmp    # files in /tmp ending in '.ant' modified >= 1 day ago\n");
-    printf("  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* or /var/*b*\n");
+    printf("  -fip a /tmp -ip b /var       # files named /tmp/*a*, /tmp/*A* and /var/*b*\n");
     printf("  -rfa -3h src                 # files in the src tree accessed <= 3 hours ago\n");
     printf("  -dRp ^yes -X no .            # directories in . named yes* unless named *no* - reverse sort\n");
     printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified before /etc/hosts was\n");
-    printf("  -vfm -3h / /tmp -fda 1h /var # files in / or /tmp modified <= 3 hours, and directories (but\n");
-    printf("                               # NOT files) in /var accessed >= 1h, verbose output\n");
+    printf("  -vfm -3h / /tmp -fda 1h /var # files in / and /tmp modified <= 3 hours ago, and directories\n");
+    printf("                               # (but NOT files) in /var accessed >= 1h ago, verbose output\n");
     printf("  -f -m -20201231_010203.5 .   # files in . modified at or before 20201231_010203.5\n");
     printf("\n");
-    printf("findfiles Copyright (C) 2016-2023 James S. Crook\n");
+    printf("findfiles Copyright (C) 2016-2024 James S. Crook\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
     printf("This is free software, and you are welcome to redistribute it under certain conditions.\n");
     printf("This program is licensed under the terms of the GNU General Public License as published\n");
@@ -286,6 +308,7 @@ void process_object(char *pathname) {
     char	objectname[MAXPATHLENGTH], *chptr;
     time_t	objecttime_s, objecttime_ns;
     int		idx, includeflag = 1;
+    Objectinfo	*oldobjectinfotable;
 
     /* extract the object name after the last '/' char */
     if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
@@ -336,8 +359,10 @@ void process_object(char *pathname) {
 		} else {
 		    maxnumberobjects += MAXNUMOBJSINCVAL;
 		}
+		oldobjectinfotable = objectinfotable;
 		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
 		    perror("E: insufficient memory - realloc failed");
+		    free(oldobjectinfotable);		/* Only here to make Cppcheck happy */
 		    exit(1);
 		}
 	    }
@@ -385,35 +410,35 @@ void trim_trailing_slashes(char *pathname) {
 
 
 /*******************************************************************************
-Very large integers can be difficult to read - especially when they have no
+Very large numbers can be difficult to read - especially when they have no
 thousands separators. This function displays object sizes with a suitably scaled
 decimal part (a "mantissa" of sorts) and a suitable unit (eg, "GiB").  For
-example, if an object size is 1000000000B, it's displayed as "1.00MB" or "954MiB".
+example, an object of size 1000000000B is displayed as "1.00MB" or "954MiB".
 *******************************************************************************/
-#define TENLIMIT	9.9999	/* Prevent printf rounding value issues with 10 */
-#define HUNDREDLIMIT	99.999	/* Prevent printf rounding value issues with 100 */
+#define TENLIMIT	9.9999	/* Prevent printf rounding issues with 10 */
+#define HUNDREDLIMIT	99.999	/* Prevent printf rounding issues with 100 */
 
-void display_human_readable_size(unsigned long size) {
+void display_human_readable_size(size_t size) {
     float mantissa;
-    int  unitidx = 0;
-    unsigned long divisor = 1;
+    size_t unitidx, divisor = 1;
 
-    /* increase divisor by multiles of humanreadablemultiple until size/divisor < humanreadablemultiple */
-    while (1) {
-	if (divisor*humanreadablemultiple > size) {
+    /* Loop from index 0 to (max) N-2. That is, max N-1 interations! */
+    for (unitidx=0; unitidx<numhumanunits-1; unitidx++) {
+	if (size < humanunittable[unitidx].sizelimit) {
 	    break;
+	} else {
+	    divisor = humanunittable[unitidx].sizelimit;
 	}
-	unitidx++;
-	divisor *= humanreadablemultiple;
     }
+    /* Use the largest unit's details even if the file size exceeds its sizelimit */
     mantissa = size / (float)divisor;
 
     if (mantissa < TENLIMIT) {
-	printf(" %4.2f%s  ", mantissa, unitstringtable[unitidx]);
+	printf(" %4.2f%s  ", mantissa, humanunittable[unitidx].unitstring);
     } else if (mantissa < HUNDREDLIMIT) {
-	printf(" %4.1f%s  ", mantissa, unitstringtable[unitidx]);
+	printf(" %4.1f%s  ", mantissa, humanunittable[unitidx].unitstring);
     } else {
-	printf(" %4.0f%s  ", mantissa, unitstringtable[unitidx]);
+	printf(" %4.0f%s  ", mantissa, humanunittable[unitidx].unitstring);
     }
 }
 
@@ -483,7 +508,7 @@ void process_directory(char *pathname, int recursiondepth) {
     }
 
     if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
-	fprintf(stderr, "W: opendir error");
+	fprintf(stderr, "W: opendir error - ");
 	perror(pathname);
 	returncode = 1;
 	return;
@@ -535,8 +560,7 @@ void list_objects() {
     struct tm	*localtimeinfoptr;
     char	objectagestr[MAXOBJAGESTRLEN], *chptr;
     int		foundidx, negativeageflag;
-    time_t	objectage_s, absobjectage_s, days, hrs, mins, secs;
-    time_t	objectage_ns = DEFAULTAGE;
+    time_t	objectage_s, objectage_ns, absobjectage_s, days, hrs, mins, secs;
 
     qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_info);
     for (foundidx=0; foundidx<numobjsfound; foundidx++) {
@@ -611,10 +635,10 @@ void list_objects() {
 		printf(" ");
 	    }
 
-	    if (humanreadablemultiple != 0) {
-		display_human_readable_size(objectinfotable[foundidx].size);
-	    } else {
+	    if (humanunittable == NULL) {
 		printf(" %14lu%c  ", objectinfotable[foundidx].size, bytesunitchar);
+	    } else {
+		display_human_readable_size(objectinfotable[foundidx].size);
 	    }
 	}
 	printf("%s\n", objectinfotable[foundidx].name);
@@ -648,7 +672,8 @@ Eg "123" to 123000000, "000123" to 123000 and "000000123" to 123.
 *******************************************************************************/
 int convert_string_to_ns(char *fractionstr) {
     char	nanosecondsstr[] = NANOSECONDSSTR;
-    char	*fromchptr = fractionstr, *tochptr = nanosecondsstr+1;
+    const char	*fromchptr = fractionstr;
+    char	*tochptr = nanosecondsstr+1;
 
     while (*fromchptr && *tochptr) {
 	if (isdigit(*fromchptr)) {
@@ -668,7 +693,7 @@ reason for not using adjust_relative_age (below) is because when that function
 is called with a large integer (s), the fraction (ns) is sometimes rounded.
 See below. This function returns the correct number of nanoseconds.
 *******************************************************************************/
-time_t adjust_relative_age_seconds(char *relativeagestr, int *timeunitptr) {
+time_t adjust_relative_age_seconds(const char *relativeagestr, int *timeunitptr) {
     char	*decimalchptr, trimmedrelativeagestr[sizeof(NANOSECONDSSTR)-1] = { '\0' };
     int		trimmedrelativeagestrlen, relativeage_ns = 0;
 
@@ -693,7 +718,7 @@ string representing floating point number) into integer and (optional) fraction
 parts. Update the breakdown time structure (timeinfoptr, see below) by the
 calculated integer number of seconds, and return the calculated number of ns.
 *******************************************************************************/
-time_t adjust_relative_age(char *relativeagestr, int *timeunitptr, long secsperunit) {
+time_t adjust_relative_age(const char *relativeagestr, int *timeunitptr, long secsperunit) {
     double	relativeage_s, relativeage_ns;
 
     relativeage_s = atof(relativeagestr) * secsperunit;
@@ -745,14 +770,23 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 
 
 /*******************************************************************************
-Display the starttime in s.ns in human readable format.
+Convert a time in seconds to a locale-specific (language, TZ) date string.
+*******************************************************************************/
+void convert_time_s_to_date_string(time_t time_s, char *datestr) {
+    struct tm	timeinfo;
+
+    localtime_r(&time_s, &timeinfo);
+    strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, &timeinfo);
+}
+
+
+/*******************************************************************************
+Display the starttime in s.ns in a more easily readable format.
 *******************************************************************************/
 void list_starttime() {
-    struct tm	timeinfo;
     char	datestr[MAXDATESTRLENGTH];
 
-    localtime_r(&starttime_s, &timeinfo);
-    strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, &timeinfo);
+    convert_time_s_to_date_string(starttime_s, datestr);
     fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
     fflush(stderr);
 }
@@ -822,7 +856,6 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
 	accesstimeflag = 1;
     }
 
-
     timeunitchar = *(timeinfostr+strlen(timeinfostr+1));
     localtime_r(&starttime_s, &timeinfo);
 
@@ -875,7 +908,8 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
 		relativeage_ns = targettime_ns - starttime_ns;
 	    }
 	}
-	strftime(datestr, MAXDATESTRLENGTH, infodatetimeformatstr, &timeinfo);
+
+	convert_time_s_to_date_string(targettime_s, datestr);
 	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
 	fprintf(stderr, "i: %13.5fD ~= %10ld.%09lds last %s %s target time ('%s')\n",
 	    (float)(starttime_s-targettime_s)/SECONDSPERDAY, relativeage_s,
@@ -893,6 +927,7 @@ or last access time, as required.
 *******************************************************************************/
 void set_target_time_by_object_time(char *targetobjectstr, char c) {
     struct stat	statinfo;
+    char	datestr[MAXDATESTRLENGTH];
 
     if (*targetobjectstr == NEGATIVESIGNCHAR) {
 	/* eg, "-M -foo" find objects last modified BEFORE foo was (OLDER than) */
@@ -904,12 +939,6 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
 	if (*targetobjectstr == POSITIVESIGNCHAR) {
 	    targetobjectstr++;
 	}
-    }
-
-    if (verbosity > 1) {
-	fprintf(stderr, "i: last %s %s than '%s'\n", accesstimeflag ? "accessed" : "modified",
-	    newerthantargetflag ? "after (newer than)" : "before (older than)", targetobjectstr);
-	fflush(stderr);
     }
 
     if (*targetobjectstr && (lstat(targetobjectstr, &statinfo) != -1)) {
@@ -925,6 +954,15 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
     } else {
 	fprintf(stderr, "E: Cannot access '%s'\n", targetobjectstr);
 	exit(1);
+    }
+
+    if (verbosity > 1) {
+	fprintf(stderr, "i: last %s %s than '%s'\n", accesstimeflag ? "accessed" : "modified",
+	    newerthantargetflag ? "after (newer than)" : "before (older than)", targetobjectstr);
+	convert_time_s_to_date_string(targettime_s, datestr);
+	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
+	list_starttime();
+	fflush(stderr);
     }
 
     if (newerthantargetflag) {
@@ -1106,7 +1144,7 @@ All of the values that can be configured with the FF_... environment variables
 can also be set on the command line. Command line values take precedence over
 environment variables (i.e., if they are set in both places).
 *******************************************************************************/
-void set_cmd_line_envvar(char *inputstr) {
+void set_cmd_line_envvar(const char *inputstr) {
     struct tm		timeinfo;
     unsigned int	idx;
     char		*chptr;
@@ -1160,7 +1198,7 @@ void list_envvartable() {
     }
 
     for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
-	sprintf(outputformatstr, "i: %%%lds='%%s'%%%lds", maxvarnamelen,
+	sprintf(outputformatstr, "i: %%%zus='%%s'%%%zus", maxvarnamelen,
 					maxvarvaluelen-strlen(*envvartable[idx].valueptr)+1);
 	fprintf(stderr, outputformatstr, envvartable[idx].name, *envvartable[idx].valueptr, "");
 	if (strcmp(*envvartable[idx].valueptr, envvartable[idx].defaultvalue)) {
@@ -1226,12 +1264,14 @@ int main(int argc, char *argv[]) {
 		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
 		case 'A': set_target_time_by_object_time(optarg, optchar);			break;
 		case 'M': set_target_time_by_object_time(optarg, optchar);			break;
-		case 'h': humanreadablemultiple = 1024; unitstringtable = unit1024stringtable;	break;
-		case 'H': humanreadablemultiple = 1000; unitstringtable = unit1000stringtable;	break;
+		case 'h': humanunittable = humanunit1024table;
+		    numhumanunits = sizeof(humanunit1024table)/sizeof(Unitinfo);		break;
+		case 'H': humanunittable = humanunit1000table;
+		    numhumanunits = sizeof(humanunit1000table)/sizeof(Unitinfo);		break;
 		case 'n': displaynsecflag = 1;							break;
 		case 's': displaysecondsflag = 1;						break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;
-		case 'L': followsymlinksflag = 1;						break;
+		case 'L': followsymlinksflag = !followsymlinksflag;				break;
 		case 'R': sortmultiplier = -1;							break;
 		case 'v': verbosity++;								break;
 	    }
