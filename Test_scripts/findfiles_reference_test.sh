@@ -186,6 +186,7 @@ create_ts_files_YMDHMSns 2018 2018 1   1 1 1   9 11 1 \
 	"$FF   -vvfn -A -$REFFILE ." \
 	"$FF   -vvfn -m  1728000.25s ." \
 	"$FF   -vvfn -m  20.25D ." \
+	"$FF   -vf   -T ." \
 
     do
 	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="

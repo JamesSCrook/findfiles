@@ -144,6 +144,7 @@ for ARGS in \
     "-fodv  -M -/etc/vimrc /etc" \
     "-fodv  -A  /etc/vimrc /etc" \
     "-fodv  -A -/etc/vimrc /etc" \
+    "-fodv  -T -p ^su /usr/bin" \
 \
     "-fvR /etc" \
     "-fvR -m   30D /etc" \
@@ -199,6 +200,7 @@ for ARGS in \
     "--files --others --directories --verbose --mod-ref -/etc/vimrc /etc" \
     "--files --others --directories --verbose --acc-ref  /etc/vimrc /etc" \
     "--files --others --directories --verbose --acc-ref -/etc/vimrc /etc" \
+    "--files --others --directories --verbose --types --pattern ^su /usr/bin" \
 \
     "--files --verbose --reverse /etc" \
     "--files --verbose --reverse --mod-info  30D /etc" \

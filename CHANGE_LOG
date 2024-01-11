@@ -1,4 +1,13 @@
 =============================================================================================
+v3.3.0 Thu 11 Jan 2024 12:53:36 AEDT
+
+1. Added -T/--types) flag to display the object "type" (Fil, Dir, Slk, etc.)
+
+2. Added "(default off)" to -L option in the usage message
+
+3. Updated the regression and reference tests
+
+=============================================================================================
 v3.2.1 Mon 01 Jan 2024 12:14:05 AEDT
 
 1. -A verbose output incorrectly displayed "modified ...". Corrected it to "accessed ...".

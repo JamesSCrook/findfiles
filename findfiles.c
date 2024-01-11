@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.2.1"
+#define PROGRAMVERSIONSTRING	"3.3.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -124,7 +124,7 @@ last access and/or last modification times are both rare and uninteresting.
 #define FF_STARTTIMESTR		"FF_STARTTIME"
 #define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHnsuLRv"
+#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHnsuLRTv"
 
 typedef struct {
     char	*name;
@@ -180,6 +180,7 @@ typedef struct {	/* each object's name, modification XOR access time & size */
     time_t	time_s;
     time_t	time_ns;
     off_t	size;
+    mode_t	type;
 } Objectinfo;
 
 Objectinfo	*objectinfotable;
@@ -217,6 +218,7 @@ int	displaynsecflag		= 0;
 int	accesstimeflag		= 0;
 int	newerthantargetflag	= 0;
 int	followsymlinksflag	= 0;
+int	displaytypesflag	= 0;
 int	sortmultiplier		= 1;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
@@ -243,7 +245,7 @@ void display_usage_message(const char *progname) {
     printf("  -o|--others      : other files   (default off)\n");
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
     printf("  -i|--ignore-case : case insensitive pattern match - use before -p|-P|-x|-X (default off)\n");
-    printf("  -L|--symlinks    : follow symbolic Links\n");
+    printf("  -L|--symlinks    : follow symbolic Links (default off)\n");
     printf(" OPTIONs requiring an argument (parsed left to right):\n");
     printf("  -p|--pattern     ERE : (re)initialize name search to include objects matching this ERE\n");
     printf("  -P|--and-pattern ERE : extend name search to include objects also matching this ERE (logical and)\n");
@@ -268,6 +270,7 @@ void display_usage_message(const char *progname) {
     printf("  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n");
     printf("  -u|--units       : display units: s for seconds, B for Bytes (default off)\n");
     printf("  -R|--reverse     : Reverse the (time) order of the output (default off)\n");
+    printf("  -T|--types       : Display the type of each file/directory/other (default off)\n");
     printf(" Verbosity: (May be specified more than once for additional information)\n");
     printf("  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n");
     printf(" Time units:\n");
@@ -373,6 +376,7 @@ void process_object(char *pathname) {
 	    }
 	    strcpy(objectinfotable[numobjsfound].name, pathname);
 	    objectinfotable[numobjsfound].size = statinfo.st_size;
+	    objectinfotable[numobjsfound].type = statinfo.st_mode;
 	    objectinfotable[numobjsfound].time_s = objecttime_s;
 	    objectinfotable[numobjsfound].time_ns = objecttime_ns;
 	    numobjsfound++;
@@ -640,6 +644,17 @@ void list_objects() {
 	    } else {
 		display_human_readable_size(objectinfotable[foundidx].size);
 	    }
+	}
+
+	if (displaytypesflag) {		/* In order of expected frequencey (first 3, anyway) */
+	    if      (S_ISREG( objectinfotable[foundidx].type)) printf("Fil ");
+	    else if (S_ISDIR( objectinfotable[foundidx].type)) printf("Dir ");
+	    else if (S_ISLNK( objectinfotable[foundidx].type)) printf("Sln ");
+	    else if (S_ISBLK( objectinfotable[foundidx].type)) printf("Blk ");
+	    else if (S_ISCHR( objectinfotable[foundidx].type)) printf("Chr ");
+	    else if (S_ISFIFO(objectinfotable[foundidx].type)) printf("FIF ");
+	    else if (S_ISSOCK(objectinfotable[foundidx].type)) printf("Soc ");
+	    else 					       printf("Oth ");
 	}
 	printf("%s\n", objectinfotable[foundidx].name);
     }
@@ -1052,7 +1067,8 @@ void command_line_long_to_short(char *longopt) {
 	{ "-R", "--reverse"	, 5 },
 	{ "-s", "--seconds"	, 4 },
 	{ "-L", "--symlinks"	, 4 },
-	{ "-t", "--target"	, 3 },
+	{ "-t", "--target"	, 4 },
+	{ "-T", "--types"	, 4 },
 	{ "-u", "--units"	, 3 },
 	{ "-V", "--variable"	, 4 },
 	{ "-v", "--verbose"	, 4 },
@@ -1272,6 +1288,7 @@ int main(int argc, char *argv[]) {
 		case 's': displaysecondsflag = 1;						break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;
 		case 'L': followsymlinksflag = !followsymlinksflag;				break;
+		case 'T': displaytypesflag = 1;							break;
 		case 'R': sortmultiplier = -1;							break;
 		case 'v': verbosity++;								break;
 	    }
