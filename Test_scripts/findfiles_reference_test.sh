@@ -399,6 +399,26 @@ echo ===========================================================================
 )
 
 
+echo ======================================================================================================
+echo "Test handling of all the object types: Fil, Dir, Sln, Blk, Chr, FIF, Soc. There should be no 'Oth'"
+echo ======================================================================================================
+(
+    nc -lkU ff_socket > /dev/null &	# must be in the background
+    sleep 1				# wait so the next objects are garanteed to have later timestamps
+    mknod ff_fifo p
+    sudo mknod ff_char_device c 1 7
+    sudo mknod ff_block_device b 1 7
+    for CMD in \
+	"$FF -fdorR -T ." \
+
+    do
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
 ################################################################################
 # Cleanup and exit
 ################################################################################

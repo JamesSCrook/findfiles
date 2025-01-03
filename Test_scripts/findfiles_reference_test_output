@@ -1122,3 +1122,21 @@ i: set starttime to '20220301_000010.5' with environment variable FF_STARTTIME
 i: start time:       1646092810.500000000s ~= Tue Mar 01 00:00:10 2022 UTC +0000
 E: Illegal character ('x') in time fraction string '1234x5678'
 
+======================================================================================================
+Test handling of all the object types: Fil, Dir, Sln, Blk, Chr, FIF, Soc. There should be no 'Oth'
+======================================================================================================
+========== [findfiles -fdorR -T .] (FF_STARTTIME=) ==========
+Fil ./DirL1/2021-01-01_00:00:00.000000000
+Fil ./DirL1/DirL2/2021-06-15_00:00:00.000000000
+Fil ./DirL1/DirL2/2021-06-16_00:00:00.000000000
+Fil ./DirL1/2021-07-01_00:00:00.000000000
+Sln ./DirL1_symlink
+Sln ./DirL1/DirL2_symlink
+Dir ./DirL1
+Dir ./DirL1/DirL2
+Soc ./ff_socket
+FIF ./ff_fifo
+Chr ./ff_char_device
+Blk ./ff_block_device
+Dir .
+

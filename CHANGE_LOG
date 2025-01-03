@@ -1,4 +1,11 @@
 =============================================================================================
+v3.3.1 Fri 03 Jan 2025 11:40:29 AEDT
+
+1. Removed a redundant "W: No target have been specified!" message.
+
+2. Updated findfiles_reference_test.sh and findfiles_reference_test_output for -T option
+
+=============================================================================================
 v3.3.0 Thu 11 Jan 2024 12:53:36 AEDT
 
 1. Added -T/--types) flag to display the object "type" (Fil, Dir, Slk, etc.)
