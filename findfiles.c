@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.3.1"
+#define PROGRAMVERSIONSTRING	"3.4.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -86,6 +86,7 @@ last access and/or last modification times are both rare and uninteresting.
 #include <dirent.h>
 #include <regex.h>
 #include <ctype.h>
+#include <pwd.h>
 
 #define MAX(x,y)		((x)>(y)?(x):(y))
 
@@ -124,7 +125,13 @@ last access and/or last modification times are both rare and uninteresting.
 #define FF_STARTTIMESTR		"FF_STARTTIME"
 #define DEFAULTTIMESTAMPFMT	"%Y%m%d_%H%M%S"
 
-#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHnsuLRTv"
+#define	SELECTSMALLERSIZES	-1
+#define	SELECTALLSIZES		0
+#define	SELECTLARGERSIZES	1
+#define SELECTALLUSERS		-1
+#define REJECTALLUSERS		-2
+
+#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHSz:U:nsuLRTv"
 
 typedef struct {
     char	*name;
@@ -180,6 +187,7 @@ typedef struct {	/* each object's name, modification XOR access time & size */
     time_t	time_s;
     time_t	time_ns;
     off_t	size;
+    uid_t	uid;
     mode_t	type;
 } Objectinfo;
 
@@ -220,11 +228,20 @@ int	newerthantargetflag	= 0;
 int	followsymlinksflag	= 0;
 int	displaytypesflag	= 0;
 int	sortmultiplier		= 1;
+off_t	selectobjectsize	= 0;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
+int	selectsizecontrol	= SELECTALLSIZES;
+uid_t	selectuid		= SELECTALLUSERS;
+
 
 /* function prototypes */
 void process_directory(char *, int);
+int compare_object_time_info(const void *, const void *);
+int compare_object_size_info(const void *, const void *);
+
+/* Set the default object comparison function to compare by (modfication or access) time */
+int (*compare_object_function_ptr)() = &compare_object_time_info;
 
 
 /*******************************************************************************
@@ -251,9 +268,11 @@ void display_usage_message(const char *progname) {
     printf("  -P|--and-pattern ERE : extend name search to include objects also matching this ERE (logical and)\n");
     printf("  -x|--exclude     ERE : (re)initialize name search to exclude objects matching this ERE\n");
     printf("  -X|--and-exclude ERE : extend name search to exclude objects also matching this ERE (logical and)\n");
-    printf("  -t|--target target_path            : target path (no default)\n");
-    printf("  -D|--depth maximum_recursion_depth : maximum recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
-    printf("  -V|--variable=value                : for <FF_variable>=<value>\n");
+    printf("  -t|--target target_path        : target path (no default)\n");
+    printf("  -D|--depth max_recursion_depth : max recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
+    printf("  -U|--user username|userID      : select objects owned by username|userID (eg, root or 0)\n");
+    printf("  -V|--variable=value            : for <FF_variable>=<value>\n");
+    printf("  -z|--size [-|+]object_size     : - to select objects sized <= object_size, [+] for >=\n");
     printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
     printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= access ages (no default)\n");
     printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= mod ages (default 0s: any time)\n");
@@ -264,13 +283,14 @@ void display_usage_message(const char *progname) {
     printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer access times (no default)\n");
     printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer mod times (no default)\n");
     printf(" Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n");
-    printf("  -h|--human-1024  : display object sizes in 'human readable' form (eg, '1.00kiB')\n");
-    printf("  -H|--human-1000  : display object sizes in 'human readable' form (eg, '1.02kB')\n");
-    printf("  -n|--nanoseconds : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
-    printf("  -s|--seconds     : display file ages in seconds (default D_hh:mm:ss)\n");
-    printf("  -u|--units       : display units: s for seconds, B for Bytes (default off)\n");
-    printf("  -R|--reverse     : Reverse the (time) order of the output (default off)\n");
-    printf("  -T|--types       : Display the type of each file/directory/other (default off)\n");
+    printf("  -h|--human-1024   : display object sizes in 'human readable' form (eg, '1.00kiB')\n");
+    printf("  -H|--human-1000   : display object sizes in 'human readable' form (eg, '1.02kB')\n");
+    printf("  -n|--nanoseconds  : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
+    printf("  -s|--seconds      : display file ages in seconds (default D_hh:mm:ss)\n");
+    printf("  -u|--units        : display units: s for seconds, B for Bytes (default off)\n");
+    printf("  -R|--reverse      : Reverse the (time) order of the output (default off)\n");
+    printf("  -S|--sort-by-size : sort by object size\n");
+    printf("  -T|--types        : Display the type of each file/directory/other (default off)\n");
     printf(" Verbosity: (May be specified more than once for additional information)\n");
     printf("  -v|--verbose : also display modification time, age & size(B) (default 0[off])\n");
     printf(" Time units:\n");
@@ -310,8 +330,8 @@ void process_object(char *pathname) {
     struct	stat statinfo;
     char	objectname[MAXPATHLENGTH], *chptr;
     time_t	objecttime_s, objecttime_ns;
-    int		idx, includeflag = 1;
     Objectinfo	*oldobjectinfotable;
+    int		idx, regexselectflag = 1;
 
     /* extract the object name after the last '/' char */
     if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
@@ -326,12 +346,12 @@ void process_object(char *pathname) {
     */
     for (idx=0; idx<numeres; idx++) {	/* this for loop is skipped when numeres is 0 */
 	if (regexec(&eretable[idx].compiledere, objectname, (size_t)0, NULL, 0) != eretable[idx].matchcode) {
-	    includeflag = 0;	/* -p non-match or -x match: skip this object */
+	    regexselectflag = 0;	/* -p non-match or -x match: skip this object */
 	    break;		/* no need to check any later ERE(s) */
 	}
     }
 
-    if (includeflag) {
+    if (regexselectflag) {
 	if (lstat(pathname, &statinfo) == -1) {
 	    fprintf(stderr, "W: process_object: Cannot access '%s'\n", pathname);
 	    returncode = 1;
@@ -346,14 +366,22 @@ void process_object(char *pathname) {
 	    objecttime_ns = statinfo.st_mtim.tv_nsec;
 	}
 
-	if ((targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
-	    ( newerthantargetflag && (
-		objecttime_s > targettime_s ||
-		(objecttime_s == targettime_s && objecttime_ns >= targettime_ns))
-	    ) ||
-	    (!newerthantargetflag && (
-		objecttime_s < targettime_s ||
-		(objecttime_s == targettime_s && objecttime_ns <= targettime_ns))
+	if (
+	    /* If the object's (modification xor access) time is such that it should be selected */
+	    (
+		(targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
+		( newerthantargetflag && (objecttime_s > targettime_s || (objecttime_s == targettime_s && objecttime_ns >= targettime_ns))) ||
+		(!newerthantargetflag && (objecttime_s < targettime_s || (objecttime_s == targettime_s && objecttime_ns <= targettime_ns)))
+	    ) &&
+	    /* AND the object's size is such that it should be selected */
+	    (
+		(selectsizecontrol == SELECTALLSIZES) ||
+		(selectsizecontrol == SELECTLARGERSIZES  && statinfo.st_size >= selectobjectsize) ||
+		(selectsizecontrol == SELECTSMALLERSIZES && statinfo.st_size <= selectobjectsize)
+	    ) &&
+	    /* AND the object is owned by a user to be selected */
+	    (
+		((int)selectuid == SELECTALLUSERS || selectuid == statinfo.st_uid)
 	    )
 	) {
 	    if (numobjsfound >= maxnumberobjects) {
@@ -377,6 +405,7 @@ void process_object(char *pathname) {
 	    strcpy(objectinfotable[numobjsfound].name, pathname);
 	    objectinfotable[numobjsfound].size = statinfo.st_size;
 	    objectinfotable[numobjsfound].type = statinfo.st_mode;
+	    objectinfotable[numobjsfound].uid  = statinfo.st_uid;
 	    objectinfotable[numobjsfound].time_s = objecttime_s;
 	    objectinfotable[numobjsfound].time_ns = objecttime_ns;
 	    numobjsfound++;
@@ -538,7 +567,7 @@ void process_directory(char *pathname, int recursiondepth) {
 Comparison function for sorting objectinfotable by time (with qsort). The sort
 order is: seconds, then nanoseconds, then filename.
 *******************************************************************************/
-int compare_object_info(const void *firstptr, const void *secondptr) {
+int compare_object_time_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
@@ -551,6 +580,17 @@ int compare_object_info(const void *firstptr, const void *secondptr) {
 	    return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
 	}
     }
+}
+
+/*******************************************************************************
+Comparison function for sorting objectinfotable by size (with qsort). The sort
+order is: time.
+*******************************************************************************/
+int compare_object_size_info(const void *firstptr, const void *secondptr) {
+    const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
+    const Objectinfo	*secondobjinfoptr = secondptr;
+
+    return (firstobjinfoptr->size-secondobjinfoptr->size)*sortmultiplier;
 }
 
 
@@ -566,7 +606,7 @@ void list_objects() {
     int		foundidx, negativeageflag;
     time_t	objectage_s, objectage_ns, absobjectage_s, days, hrs, mins, secs;
 
-    qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_info);
+    qsort((void*)objectinfotable, (size_t)numobjsfound, (size_t)sizeof(Objectinfo), compare_object_function_ptr);
     for (foundidx=0; foundidx<numobjsfound; foundidx++) {
 	if (verbosity > 0) {
 	    if (verbosity > 2) {		/* Test/debug: object time in s and ns */
@@ -1062,10 +1102,13 @@ void command_line_long_to_short(char *longopt) {
 	{ "-r", "--recursive"	, 5 },
 	{ "-R", "--reverse"	, 5 },
 	{ "-s", "--seconds"	, 4 },
+	{ "-z", "--size"	, 4 },
+	{ "-S", "--sort-by-size", 4 },
 	{ "-L", "--symlinks"	, 4 },
 	{ "-t", "--target"	, 4 },
 	{ "-T", "--types"	, 4 },
-	{ "-u", "--units"	, 3 },
+	{ "-u", "--units"	, 4 },
+	{ "-U", "--user"	, 4 },
 	{ "-V", "--variable"	, 4 },
 	{ "-v", "--verbose"	, 4 },
     };
@@ -1224,6 +1267,62 @@ void list_envvartable() {
 
 
 /*******************************************************************************
+Set seclectsizecontrol to choose:
+   < 0: select objects that are <  than the specified size
+  >= 0: select objects that are >= than the specified size
+*******************************************************************************/
+void set_select_size(const char *optarg) {
+    if (*optarg == NEGATIVESIGNCHAR) {
+	selectsizecontrol = SELECTSMALLERSIZES;
+	selectobjectsize = strtoul(optarg+1, NULL, 10);
+    } else {
+	selectsizecontrol = SELECTLARGERSIZES;
+	selectobjectsize = strtoul(optarg, NULL, 10);
+    }
+}
+
+
+/*******************************************************************************
+Set selectuid to:
+  the uid specified, eg, -U 1234, or
+  the uid of the user specified, eg, '-U root' to set 0
+*******************************************************************************/
+void set_select_user(char *optarg) {
+    struct passwd	*passwordptr;
+    char		*chptr;
+    int			uid = SELECTALLUSERS, integerflag = 1, userfoundflag = 0;
+
+    /* if the -U user_id is a string in the format of an integer, set uid to that value */
+    for (chptr=optarg; *chptr!='\0'; chptr++) {
+	if (!isdigit(*chptr)) {
+	    integerflag = 0;
+	    break;
+	}
+    }
+    if (integerflag && (uid=atoi(optarg)) < 0) {
+	fprintf(stderr, "W: '%s' is an illegal userID, ignoring\n", optarg);
+	return;
+    }
+
+    /* Search the passwd file for optarg as the username or as the (valid integer) uid from above */
+    setpwent();
+    while ((passwordptr=getpwent()) != NULL) {
+	if (!strcmp(optarg, passwordptr->pw_name) || uid == (int)passwordptr->pw_uid) {
+	    selectuid = passwordptr->pw_uid;
+	    userfoundflag = 1;
+	    break;
+	}
+    }
+    endpwent();
+
+    if (!userfoundflag) {
+	fprintf(stderr, "W: username/userID '%s' does not exist; no ojbects will be displayed!\n", optarg);
+	selectuid = REJECTALLUSERS;
+    }
+}
+
+
+/*******************************************************************************
 Parse the command line arguments left to right, processing them in order. See
 the usage message.
 *******************************************************************************/
@@ -1280,6 +1379,9 @@ int main(int argc, char *argv[]) {
 		    numhumanunits = sizeof(humanunit1024table)/sizeof(Unitinfo);		break;
 		case 'H': humanunittable = humanunit1000table;
 		    numhumanunits = sizeof(humanunit1000table)/sizeof(Unitinfo);		break;
+		case 'S': compare_object_function_ptr = &compare_object_size_info;		break;
+		case 'z': set_select_size(optarg);						break;
+		case 'U': set_select_user(optarg);						break;
 		case 'n': displaynsecflag = 1;							break;
 		case 's': displaysecondsflag = 1;						break;
 		case 'u': secondsunitchar = SECONDSUNITCHAR; bytesunitchar = BYTESUNITCHAR;	break;

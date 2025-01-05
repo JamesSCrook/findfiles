@@ -412,6 +412,62 @@ echo ===========================================================================
 	"$FF -fdorR -T ." \
 
     do
+	echo "========== [$CMD] =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
+echo ======================================================================================================
+echo "Test selection by username/userID"
+echo ======================================================================================================
+(
+    # Note: assumes userID bin exists. The reference file assumes bin's userID is 1.
+    export TZ=UTC
+    export FF_STARTTIME=20250103_000000
+    rm -rf $TESTBASEDIR/*
+    CHOWNUSER=bin
+    CHOWNUID=$(sudo -u $CHOWNUSER id -u)
+
+    ROOTFILE=owned_by_root;        date > $ROOTFILE;  touch -t 202501010000 $ROOTFILE;  sudo chown root       $ROOTFILE;
+    CHOWNFILE=owned_by_$CHOWNUSER; date > $CHOWNFILE; touch -t 202501010000 $CHOWNFILE; sudo chown $CHOWNUSER $CHOWNFILE;
+
+    for CMD in \
+	"$FF -vf               ." \
+	"$FF -vf -U root       ." \
+	"$FF -vf -U 0          ." \
+	"$FF -vf -U $CHOWNUSER ." \
+	"$FF -vf -U $CHOWNUID  ." \
+
+    do
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+
+
+echo ======================================================================================================
+echo "Test selection by and sorting by size"
+echo ======================================================================================================
+(
+    export TZ=UTC
+    export FF_STARTTIME=20250103_000000
+    rm -rf $TESTBASEDIR/*
+    for ((i=100; i<=1000; i+=100)) {
+	FMTI=$(printf "%04d" $i)
+	yes "This is rubbish" | dd bs=1024 count=$FMTI of=${FMTI}k status=none
+	touch -t 20250101${FMTI}    ${FMTI}k
+    }
+
+    for CMD in \
+	"$FF -vf -S  ." \
+	"$FF -vf -SR ." \
+	"$FF -vf -Sh -z -512000 ." \
+	"$FF -vf -Sh -z  512000 ." \
+
+    do
 	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
 	eval "$CMD" 2>&1
 	echo

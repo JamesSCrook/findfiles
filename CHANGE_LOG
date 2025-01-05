@@ -1,4 +1,15 @@
 =============================================================================================
+v3.4.0 Sun 05 Jan 2025 17:47:29 AEDT
+
+1. Added -U/--user option to select by userID and/or username
+
+2. Added -z/--size option to select by object size
+
+3. Added -S/--sort-by-size option to do that
+
+4. Updated findfiles_reference_test.sh, findfiles_reference_test_output & findfiles_regression_test.sh
+
+=============================================================================================
 v3.3.1 Fri 03 Jan 2025 11:40:29 AEDT
 
 1. Removed a redundant "W: No target have been specified!" message.

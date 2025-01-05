@@ -171,6 +171,14 @@ for ARGS in \
     "-vfh /etc" \
     "-vfH /etc" \
 \
+    "-vf -S /etc" \
+    "-vf -z 5000 /etc" \
+\
+    "-vf -U 0 /etc" \
+    "-vf -U -1 /etc" \
+    "-vf -U root /etc" \
+    "-vf -U GlUrBuSeR /etc" \
+\
     "--files --verbose /etc" \
     "--files --verbose --mod-info  30D /etc" \
     "--files --verbose --mod-info -30D /etc" \
@@ -221,6 +229,14 @@ for ARGS in \
 \
     "--directories --files --verbose --pattern s /" \
     "--directories --files --verbose --recursive --ignore-case --pattern e --target /etc/X11" \
+\
+    "--verbose --files --sort-by-size /etc" \
+    "--verbose --files --size 5000 /etc" \
+\
+    "--verbose --files --user 0 /etc" \
+    "--verbose --files --user -1 /etc" \
+    "--verbose --files --user root /etc" \
+    "--verbose --files --user GlUrBuSeR /etc" \
 \
     "" \
 
