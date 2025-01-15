@@ -1,4 +1,11 @@
 =============================================================================================
+v3.4.1 Wed 15 Jan 2025 15:59:57 AEDT
+
+1. Allow -U userID to search for objects even when that userID does not exist in /etc/passwd.
+
+2. Added a -U test to findfiles_regression_test.sh.
+
+=============================================================================================
 v3.4.0 Sun 05 Jan 2025 17:47:29 AEDT
 
 1. Added -U/--user option to select by userID and/or username

@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.4.0"
+#define PROGRAMVERSIONSTRING	"3.4.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -288,7 +288,7 @@ void display_usage_message(const char *progname) {
     printf("  -n|--nanoseconds  : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
     printf("  -s|--seconds      : display file ages in seconds (default D_hh:mm:ss)\n");
     printf("  -u|--units        : display units: s for seconds, B for Bytes (default off)\n");
-    printf("  -R|--reverse      : Reverse the (time) order of the output (default off)\n");
+    printf("  -R|--reverse      : Reverse the sort order of the output (default off)\n");
     printf("  -S|--sort-by-size : sort by object size\n");
     printf("  -T|--types        : Display the type of each file/directory/other (default off)\n");
     printf(" Verbosity: (May be specified more than once for additional information)\n");
@@ -1290,21 +1290,30 @@ Set selectuid to:
 void set_select_user(char *optarg) {
     struct passwd	*passwordptr;
     char		*chptr;
-    int			uid = SELECTALLUSERS, integerflag = 1, userfoundflag = 0;
+    int			uid = SELECTALLUSERS, alldigitsflag = 1, userfoundflag = 0;
 
-    /* if the -U user_id is a string in the format of an integer, set uid to that value */
-    for (chptr=optarg; *chptr!='\0'; chptr++) {
-	if (!isdigit(*chptr)) {
-	    integerflag = 0;
+    /* if a userID is specified with ONE leading '+' sign, allow it (skip it and proceed) */
+    if (*optarg == POSITIVESIGNCHAR) {
+	chptr = optarg+1;
+    } else {
+	chptr = optarg;
+    }
+
+    /* if the -U [+]userID is a string in the format of a positive integer (all digits) ... */
+    while (*chptr != '\0') {
+	if (!isdigit(*chptr++)) {
+	    alldigitsflag = 0;
 	    break;
 	}
     }
-    if (integerflag && (uid=atoi(optarg)) < 0) {
+
+    /* If [+]optarg is a + integer string, assign its converted value to uid. If it's too large, it will be - */
+    if (alldigitsflag && (uid=atoi(optarg)) < 0) {
 	fprintf(stderr, "W: '%s' is an illegal userID, ignoring\n", optarg);
 	return;
     }
 
-    /* Search the passwd file for optarg as the username or as the (valid integer) uid from above */
+    /* Search the passwd file for optarg as the username OR as the (valid + integer) uid from above */
     setpwent();
     while ((passwordptr=getpwent()) != NULL) {
 	if (!strcmp(optarg, passwordptr->pw_name) || uid == (int)passwordptr->pw_uid) {
@@ -1316,8 +1325,17 @@ void set_select_user(char *optarg) {
     endpwent();
 
     if (!userfoundflag) {
-	fprintf(stderr, "W: username/userID '%s' does not exist; no ojbects will be displayed!\n", optarg);
-	selectuid = REJECTALLUSERS;
+	if (alldigitsflag) {
+	    fprintf(stderr, "W: userID '%s' does not exist on this system.\n", optarg);
+	    selectuid = uid;
+	} else {
+	    fprintf(stderr, "W: user '%s' does not exist on this system. No objects will be displayed for this user.\n", optarg);
+	    selectuid = REJECTALLUSERS;
+	}
+    }
+
+    if (verbosity > 1 && selectuid != (unsigned int)REJECTALLUSERS) {
+	fprintf(stderr, "i: Searching for username/userID '%s' (userID:%d)\n", optarg, selectuid);
     }
 }
 

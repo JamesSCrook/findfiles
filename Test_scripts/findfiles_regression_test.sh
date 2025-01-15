@@ -175,7 +175,7 @@ for ARGS in \
     "-vf -z 5000 /etc" \
 \
     "-vf -U 0 /etc" \
-    "-vf -U -1 /etc" \
+    "-vf -U 123456789012345 /etc" \
     "-vf -U root /etc" \
     "-vf -U GlUrBuSeR /etc" \
 \
@@ -234,7 +234,7 @@ for ARGS in \
     "--verbose --files --size 5000 /etc" \
 \
     "--verbose --files --user 0 /etc" \
-    "--verbose --files --user -1 /etc" \
+    "--verbose --files --user 123456789012345 /etc" \
     "--verbose --files --user root /etc" \
     "--verbose --files --user GlUrBuSeR /etc" \
 \
