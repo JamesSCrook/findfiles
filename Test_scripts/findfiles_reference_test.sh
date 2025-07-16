@@ -289,7 +289,7 @@ create_ts_files_YMDHMSns 2021 2021 1   6 6 1   15 16 1 \
 
 
 echo ======================================================================================================
-echo "Test that symbolic links are processed correctly"
+echo "Test that symbolic links"
 echo ======================================================================================================
 (
     STARTTIME=20211231_120000.0
@@ -311,6 +311,34 @@ echo ===========================================================================
 	echo
     done
 )
+
+
+################################################################################
+# Create some files with the same timestamp to test sorting by name.
+################################################################################
+SORTDIR=sortdir
+mkdir $SORTDIR
+for FILENAME in one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen; do
+    date > $SORTDIR/$FILENAME
+    touch -t 202401010000.00  $SORTDIR/$FILENAME
+done
+
+echo ======================================================================================================
+echo "Test sorting by name"
+echo ======================================================================================================
+(
+    STARTTIME=20241231_120000.0
+    for CMD in \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfrn -N  $SORTDIR" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vfrn -NR $SORTDIR" \
+
+    do
+	echo "========== [$CMD] =========="
+	eval "$CMD" 2>&1
+	echo
+    done
+)
+rm -rf $SORTDIR
 
 
 echo ======================================================================================================

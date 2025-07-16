@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.4.1"
+#define PROGRAMVERSIONSTRING	"3.5.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -130,8 +130,6 @@ last access and/or last modification times are both rare and uninteresting.
 #define	SELECTLARGERSIZES	1
 #define SELECTALLUSERS		-1
 #define REJECTALLUSERS		-2
-
-#define GETOPTSTR		"+dforip:P:x:X:t:D:V:a:m:A:M:hHSz:U:nsuLRTv"
 
 typedef struct {
     char	*name;
@@ -241,15 +239,15 @@ int compare_object_time_info(const void *, const void *);
 int compare_object_size_info(const void *, const void *);
 
 /* Set the default object comparison function to compare by (modfication or access) time */
-int (*compare_object_function_ptr)() = &compare_object_time_info;
+int (*compare_object_function_ptr)(const void *, const void *) = &compare_object_time_info;
 
-
+#define GETOPTSTR		"+dforiLp:P:x:X:t:D:U:V:z:a:m:A:M:hHnsuNRSTv"
 /*******************************************************************************
 Display the usage (help) message.
 *******************************************************************************/
 void display_usage_message(const char *progname) {
     printf("usage (version %s):\n", PROGRAMVERSIONSTRING);
-    printf("%s [OPTION]... [target|-t target]... [OPTION]... [target|-t target]...\n", progname);
+    printf("%s [OPTION]... target|-t target... [OPTION]... [target|-t target]...\n", progname);
     printf(" Some OPTIONs require arguments - these are:\n");
     printf("  age    : a relative age value followed by a time unit (eg, '3D')\n");
     printf("  ERE    : a POSIX-style Extended Regular Expression (pattern)\n");
@@ -288,6 +286,7 @@ void display_usage_message(const char *progname) {
     printf("  -n|--nanoseconds  : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
     printf("  -s|--seconds      : display file ages in seconds (default D_hh:mm:ss)\n");
     printf("  -u|--units        : display units: s for seconds, B for Bytes (default off)\n");
+    printf("  -N|--sort-by-name : sort by object name\n");
     printf("  -R|--reverse      : Reverse the sort order of the output (default off)\n");
     printf("  -S|--sort-by-size : sort by object size\n");
     printf("  -T|--types        : Display the type of each file/directory/other (default off)\n");
@@ -483,7 +482,7 @@ void process_path(char *pathname, int recursiondepth) {
     struct stat	statinfo;
 
     if (!regularfileflag && !directoryflag && !otherobjectflag) {
-	fprintf(stderr, "W: No output target types requested for '%s'!\n",pathname);
+	fprintf(stderr, "W: Please choose at least one object type (-f, -d or -o) for '%s'!\n", pathname);
 	returncode = 1;
 	return;
     }
@@ -583,14 +582,24 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
 }
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by size (with qsort). The sort
-order is: time.
+Comparison function for sorting objectinfotable by size (with qsort).
 *******************************************************************************/
 int compare_object_size_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
     return (firstobjinfoptr->size-secondobjinfoptr->size)*sortmultiplier;
+}
+
+
+/*******************************************************************************
+Comparison function for sorting objectinfotable by object name (with qsort).
+*******************************************************************************/
+int compare_object_name_info(const void *firstptr, const void *secondptr) {
+    const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
+    const Objectinfo	*secondobjinfoptr = secondptr;
+
+    return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name)*sortmultiplier);
 }
 
 
@@ -1103,7 +1112,8 @@ void command_line_long_to_short(char *longopt) {
 	{ "-R", "--reverse"	, 5 },
 	{ "-s", "--seconds"	, 4 },
 	{ "-z", "--size"	, 4 },
-	{ "-S", "--sort-by-size", 4 },
+	{ "-N", "--sort-by-name",11 },
+	{ "-S", "--sort-by-size",11 },
 	{ "-L", "--symlinks"	, 4 },
 	{ "-t", "--target"	, 4 },
 	{ "-T", "--types"	, 4 },
@@ -1397,6 +1407,7 @@ int main(int argc, char *argv[]) {
 		    numhumanunits = sizeof(humanunit1024table)/sizeof(Unitinfo);		break;
 		case 'H': humanunittable = humanunit1000table;
 		    numhumanunits = sizeof(humanunit1000table)/sizeof(Unitinfo);		break;
+		case 'N': compare_object_function_ptr = &compare_object_name_info;		break;
 		case 'S': compare_object_function_ptr = &compare_object_size_info;		break;
 		case 'z': set_select_size(optarg);						break;
 		case 'U': set_select_user(optarg);						break;

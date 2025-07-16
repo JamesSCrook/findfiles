@@ -40,7 +40,7 @@
 # Check arguments, set up the environment variables and call the findfile tests.
 ################################################################################
 if [ $# -ne 2 ]; then
-    echo "$0 exe#1 exe#2"
+    echo "$0 findfiles_version_1 findfiles_version_2"
     exit
 fi
 
@@ -173,11 +173,14 @@ for ARGS in \
 \
     "-vf -S /etc" \
     "-vf -z 5000 /etc" \
+    "-vf -N /etc/c*" \
+    "-vf -NR /etc/c*" \
 \
     "-vf -U 0 /etc" \
     "-vf -U 123456789012345 /etc" \
     "-vf -U root /etc" \
     "-vf -U GlUrBuSeR /etc" \
+\
 \
     "--files --verbose /etc" \
     "--files --verbose --mod-info  30D /etc" \
@@ -232,6 +235,8 @@ for ARGS in \
 \
     "--verbose --files --sort-by-size /etc" \
     "--verbose --files --size 5000 /etc" \
+    "--verbose --files --sort-by-name /etc/c*" \
+    "--verbose --files --sort-by-name --reverse /etc/c*" \
 \
     "--verbose --files --user 0 /etc" \
     "--verbose --files --user 123456789012345 /etc" \

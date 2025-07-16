@@ -1,4 +1,14 @@
 =============================================================================================
+v3.5.0 Thu 17 Jul 2025 09:38:12 AEST
+
+1. Added argument types to function prototype compare_object_function_ptr (not required by C17,
+   but required by the apparently now gcc default of C23).
+
+2. Added -N / --sort-by-name option.
+
+3. Updated all 3 Test_scripts files accordingly.
+
+=============================================================================================
 v3.4.1 Wed 15 Jan 2025 15:59:57 AEDT
 
 1. Allow -U userID to search for objects even when that userID does not exist in /etc/passwd.
