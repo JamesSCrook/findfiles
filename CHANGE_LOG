@@ -1,4 +1,19 @@
 =============================================================================================
+v3.6.0 Thu 21 Aug 2025 08:20:42 AEST
+
+1. Replaced strcmp with strcoll for file name sorting.
+
+2. Prevent recursively calling opendir (inderectly) from exhausting available file descriptors.
+
+3. Doubled MAXPATHLENGTH to 4096.
+
+4. Reduced the number of char [MAXPATHLENGTH] arrays in process_directory from 2 to 1.
+
+5. Eliminated MAX macro - was used once, replaced with abs().
+
+6. Cosmetic improvements
+
+=============================================================================================
 v3.5.0 Thu 17 Jul 2025 09:38:12 AEST
 
 1. Added argument types to function prototype compare_object_function_ptr (not required by C17,

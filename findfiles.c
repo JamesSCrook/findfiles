@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.5.0"
+#define PROGRAMVERSIONSTRING	"3.6.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -87,8 +87,7 @@ last access and/or last modification times are both rare and uninteresting.
 #include <regex.h>
 #include <ctype.h>
 #include <pwd.h>
-
-#define MAX(x,y)		((x)>(y)?(x):(y))
+#include <sys/resource.h>
 
 #define SECONDSPERMINUTE	60
 #define MINUTESPERHOUR		60
@@ -105,7 +104,7 @@ last access and/or last modification times are both rare and uninteresting.
 
 #define MAXRECURSIONDEPTH	256
 #define MAXDATESTRLENGTH	64
-#define MAXPATHLENGTH		2048
+#define MAXPATHLENGTH		4096
 #define INITMAXNUMOBJS		(  8*1024)	/* Allocate the object table to hold up to this many entries. */
 #define MAXNUMOBJSMLTFCT	2		/* Dynamically increase the object table size by this factor... */
 #define MAXNUMOBJSMLTLIM	(512*1024)	/* up to this number. After that, ... */
@@ -198,7 +197,7 @@ time_t	targettime_ns	= DEFAULTAGE;	/* 0 ns - find files of all ages */
 
 /* ERE: Extended Regular Expression */
 #define MAXNUMERES		4
-typedef struct {	/* preg: pre-compiled (extended) regular expression pattern buffer */
+typedef struct {		/* preg: pre-compiled (extended) regular expression pattern buffer */
     regex_t	compiledere;	/* compiled ERE (preg) */
     int		matchcode;	/* REG_MATCH or REG_NOMATCH */
 } Ereinfo;
@@ -210,6 +209,7 @@ int	maxnumberobjects	= INITMAXNUMOBJS;
 int	numobjsfound		= 0;
 int	numtargets		= 0;
 int	returncode		= 0;
+int 	filedescriptorsavailable;
 
 /* Command line option flags - all set to false */
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
@@ -346,7 +346,7 @@ void process_object(char *pathname) {
     for (idx=0; idx<numeres; idx++) {	/* this for loop is skipped when numeres is 0 */
 	if (regexec(&eretable[idx].compiledere, objectname, (size_t)0, NULL, 0) != eretable[idx].matchcode) {
 	    regexselectflag = 0;	/* -p non-match or -x match: skip this object */
-	    break;		/* no need to check any later ERE(s) */
+	    break;			/* no need to check any later ERE(s) */
 	}
     }
 
@@ -510,11 +510,16 @@ void process_path(char *pathname, int recursiondepth) {
 	if (recursiondepth == 0 && maxrecursiondepth > 0) {
 	    process_directory(pathname, recursiondepth);
 	} else if (recursiveflag) {
-	    if (recursiondepth < maxrecursiondepth) {
+	    if (recursiondepth < maxrecursiondepth && recursiondepth < filedescriptorsavailable) {
 		process_directory(pathname, recursiondepth);
-	    } else if (verbosity > 1) {
-		fprintf(stderr, "W: Traversing directory '%s' (depth %d) would exceed max depth of %d\n",
-		    pathname, recursiondepth, maxrecursiondepth);
+	    } else {
+		fprintf(stderr, "W: Cannot traverse directory '%s' (depth %d)\n", pathname, recursiondepth);
+		if (recursiondepth >= maxrecursiondepth) {
+		    fprintf(stderr, "W: Maximum tree traversal depth is %d\n", maxrecursiondepth);
+		}
+		if (recursiondepth >= filedescriptorsavailable) {
+		    fprintf(stderr, "W: (soft) file descriptor limit is %d\n", filedescriptorsavailable);
+		}
 	    }
 	}
     } else if (otherobjectflag) {		/* process "other" object types */
@@ -530,14 +535,7 @@ process_path for each one (EXCEPT '.' and '..') and close it.
 void process_directory(char *pathname, int recursiondepth) {
     DIR			*dirptr;
     struct dirent	*direntptr;
-    char		newpathname[MAXPATHLENGTH];
-    char		dirpath[MAXPATHLENGTH];
-
-    if (strcmp(pathname, "/")) {
-	sprintf(dirpath, "%s%c", pathname, PATHDELIMITERCHAR);		/* not "/" */
-    } else {
-	sprintf(dirpath, "%c", PATHDELIMITERCHAR);			/* pathname is "/" */
-    }
+    char		newpathname[MAXPATHLENGTH], pathdelimiterstr[2];
 
     if ((dirptr=opendir(pathname)) == (DIR*)NULL) {
 	fprintf(stderr, "W: opendir error - ");
@@ -546,11 +544,16 @@ void process_directory(char *pathname, int recursiondepth) {
 	return;
     }
 
+    /* Prevent a newpathname starting with "//" when pathname is "/" */
+    if (strcmp(pathname, "/")) {
+	strcpy(pathdelimiterstr, "/");	/* pathname is not "/", set pathdelimiterstr to "/" */
+    } else {
+	strcpy(pathdelimiterstr, "");	/* pathname is "/", set pathdelimiterstr to "" (null string) */
+    }
+
     while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
 	if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
-	    /* create newpathname from pathname/objectname. (sprintf generates a gcc warning) */
-	    strcpy(newpathname, dirpath);
-	    strcat(newpathname, direntptr->d_name);
+	    sprintf(newpathname, "%s%s%s", pathname, pathdelimiterstr, direntptr->d_name);
 	    process_path(newpathname, recursiondepth+1);
 	}
     }
@@ -576,7 +579,7 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
 	if (firstobjinfoptr->time_ns != secondobjinfoptr->time_ns) {
 	    return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
 	} else {
-	    return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
+	    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
 	}
     }
 }
@@ -599,7 +602,7 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
-    return (strcmp(firstobjinfoptr->name, secondobjinfoptr->name)*sortmultiplier);
+    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name)*sortmultiplier);
 }
 
 
@@ -1355,9 +1358,10 @@ Parse the command line arguments left to right, processing them in order. See
 the usage message.
 *******************************************************************************/
 int main(int argc, char *argv[]) {
-    extern char	*optarg;
-    extern int	optind, optopt, opterr;
-    int		optchar, optidx;
+    extern char		*optarg;
+    extern int		optind, optopt, opterr;
+    int			optchar, optidx;
+    struct rlimit	filelimits;
 
     setlocale(LC_ALL, getenv("LANG"));
     setlocale(LC_NUMERIC, "en_US.UTF-8");	/* always use '.' for 'decimal points' */
@@ -1379,6 +1383,14 @@ int main(int argc, char *argv[]) {
 	}
     }
 
+    /* Get the file desciptor soft limit */
+    if (getrlimit(RLIMIT_NOFILE, &filelimits) == -1) {
+        perror("E: could not get file descriptor limits");
+	exit(1);
+    } else {
+	filedescriptorsavailable = filelimits.rlim_cur - 3; /* 3: one each for stdin stdout & stderr */
+    }
+
     grab_environment_variables();
     set_starttime();
 
@@ -1397,7 +1409,7 @@ int main(int argc, char *argv[]) {
 		case 'x': numeres = 0; set_extended_regular_expression(optarg, REG_NOMATCH);	break;
 		case 'X': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
 		case 't': process_path(optarg, 0); numtargets++;				break;
-		case 'D': maxrecursiondepth = MAX(0, atoi(optarg));				break;
+		case 'D': maxrecursiondepth = abs(atoi(optarg));				break;
 		case 'V': set_cmd_line_envvar(optarg);						break;
 		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
 		case 'm': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
