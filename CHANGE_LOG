@@ -1,17 +1,21 @@
 =============================================================================================
+v3.6.0(again) Wed 18 Feb 2026 09:33:35 AEDT
+
+No change to findfiles.c, but somehow this file (CHANGE_LOG) was not committed last time
+(when it should have been).
+
+=============================================================================================
 v3.6.0 Thu 21 Aug 2025 08:20:42 AEST
 
-1. Replaced strcmp with strcoll for file name sorting.
+1. Prevent recursively calling opendir (inderectly) from exhausting available file descriptors.
 
-2. Prevent recursively calling opendir (inderectly) from exhausting available file descriptors.
+2. Doubled MAXPATHLENGTH to 4096.
 
-3. Doubled MAXPATHLENGTH to 4096.
+3. Reduced the number of char [MAXPATHLENGTH] arrays in process_directory from 2 to 1.
 
-4. Reduced the number of char [MAXPATHLENGTH] arrays in process_directory from 2 to 1.
+4. Eliminated MAX macro - was used once, replaced with abs().
 
-5. Eliminated MAX macro - was used once, replaced with abs().
-
-6. Cosmetic improvements
+5. Cosmetic improvements
 
 =============================================================================================
 v3.5.0 Thu 17 Jul 2025 09:38:12 AEST
@@ -19,7 +23,7 @@ v3.5.0 Thu 17 Jul 2025 09:38:12 AEST
 1. Added argument types to function prototype compare_object_function_ptr (not required by C17,
    but required by the apparently now gcc default of C23).
 
-2. Added -N / --sort-by-name option.
+2. Added -N / --sort-by-name option. Also replaced strcmp with strcoll for file name sorting.
 
 3. Updated all 3 Test_scripts files accordingly.
 
