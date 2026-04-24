@@ -1,4 +1,9 @@
 =============================================================================================
+v3.6.1 Fri Apr 24 10:00:13 AEST 2026
+
+1. Fixed a bug (yes, an actual bug!). Sorting objects with very large sizes works as expected.
+
+=============================================================================================
 v3.6.0(again) Wed 18 Feb 2026 09:33:35 AEDT
 
 No change to findfiles.c, but somehow this file (CHANGE_LOG) was not committed last time

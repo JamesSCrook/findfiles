@@ -2,7 +2,7 @@
 ********************************************************************************
 
 findfiles: find files based on various selection criteria
-Copyright (C) 2016-2025 James S. Crook
+Copyright (C) 2016-2026 James S. Crook
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.6.0"
+#define PROGRAMVERSIONSTRING	"3.6.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -308,7 +308,7 @@ void display_usage_message(const char *progname) {
     printf("                               # (but NOT files) in /var accessed >= 1h ago, verbose output\n");
     printf("  -f -m -20201231_010203.5 .   # files in . modified at or before 20201231_010203.5\n");
     printf("\n");
-    printf("findfiles Copyright (C) 2016-2025 James S. Crook\n");
+    printf("findfiles Copyright (C) 2016-2026 James S. Crook\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
     printf("This is free software, and you are welcome to redistribute it under certain conditions.\n");
     printf("This program is licensed under the terms of the GNU General Public License as published\n");
@@ -591,7 +591,14 @@ int compare_object_size_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
-    return (firstobjinfoptr->size-secondobjinfoptr->size)*sortmultiplier;
+    /* return (firstobjinfoptr->size-secondobjinfoptr->size)*sortmultiplier; cannot handle large object sizes! */
+    if (firstobjinfoptr->size > secondobjinfoptr->size) {
+	return sortmultiplier;
+    } else if (firstobjinfoptr->size < secondobjinfoptr->size) {
+	return -sortmultiplier;
+    } else {
+	return 0;
+    }
 }
 
 
