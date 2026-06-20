@@ -71,12 +71,13 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.6.1"
+#define PROGRAMVERSIONSTRING	"3.7.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
@@ -130,6 +131,12 @@ last access and/or last modification times are both rare and uninteresting.
 #define SELECTALLUSERS		-1
 #define REJECTALLUSERS		-2
 
+#if defined(__LP64__) || defined(_WIN64) || defined(__x86_64__) || defined(__ppc64__) || defined(__arm64__)
+    typedef size_t	size64_t;	/* 64-bit systems */
+#else
+    typedef uint64_t	size64_t;	/* 32-bit systems */
+#endif
+
 typedef struct {
     char	*name;
     char	*defaultvalue;
@@ -142,6 +149,8 @@ char	*ageformatstr;
 char	*infodatetimeformatstr;
 char	*timestampformatstr;
 
+locale_t sortlocalename;
+
 Envvar envvartable[] = {
     { "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",	&ageformatstr },
     { "FF_DATETIMEFORMAT",	"%04d%02d%02d_%02d%02d%02d",	&datetimeformatstr },
@@ -150,30 +159,30 @@ Envvar envvartable[] = {
     { "FF_TIMESTAMPFORMAT",	DEFAULTTIMESTAMPFMT,		&timestampformatstr },
 };
 
-/* Units to display after suitably scaled numbers for "human readable" file size output
-These should all be the same length and have no whitespace (sort of "right justified"). */
 typedef struct {
     char	unitstring[4];
-    size_t	sizelimit;
+    size64_t	sizelimit;
 } Unitinfo;
 
+/* Units to display after suitably scaled numbers for "human readable" file size output
+These should all be the same length and have no whitespace (sort of "right justified"). */
 Unitinfo humanunit1024table[] = {
-    { "__B",                               1024L },
-    { "kiB",                         1024L*1024L },
-    { "MiB",                   1024L*1024L*1024L },
-    { "GiB",             1024L*1024L*1024L*1024L },
-    { "TiB",       1024L*1024L*1024L*1024L*1024L },
-    { "PiB", 1024L*1024L*1024L*1024L*1024L*1024L },
+    { "__B",                                         1024ULL },
+    { "kiB",                                 1024ULL*1024ULL },
+    { "MiB",                         1024ULL*1024ULL*1024ULL },
+    { "GiB",                 1024ULL*1024ULL*1024ULL*1024ULL },
+    { "TiB",         1024ULL*1024ULL*1024ULL*1024ULL*1024ULL },
+    { "PiB", 1024ULL*1024ULL*1024ULL*1024ULL*1024ULL*1024ULL },
 };
 
 /* Recommendation: keep the same number of Unitinfo entries in both the 1024 and the 1000 tables */
 Unitinfo humanunit1000table[] = {
-    { "_B",                                1000L },
-    { "kB",                          1000L*1000L },
-    { "MB",                    1000L*1000L*1000L },
-    { "GB",              1000L*1000L*1000L*1000L },
-    { "TB",        1000L*1000L*1000L*1000L*1000L },
-    { "PB",  1000L*1000L*1000L*1000L*1000L*1000L },
+    { "_B",                                          1000ULL },
+    { "kB",                                  1000ULL*1000ULL },
+    { "MB",                          1000ULL*1000ULL*1000ULL },
+    { "GB",                  1000ULL*1000ULL*1000ULL*1000ULL },
+    { "TB",          1000ULL*1000ULL*1000ULL*1000ULL*1000ULL },
+    { "PB",  1000ULL*1000ULL*1000ULL*1000ULL*1000ULL*1000ULL },
 };
 
 Unitinfo	*humanunittable	= NULL;
@@ -231,7 +240,6 @@ char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
 int	selectsizecontrol	= SELECTALLSIZES;
 uid_t	selectuid		= SELECTALLUSERS;
-
 
 /* function prototypes */
 void process_directory(char *, int);
@@ -574,18 +582,22 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*secondobjinfoptr = secondptr;
 
     if (firstobjinfoptr->time_s != secondobjinfoptr->time_s) {
+	/* if the timestamp seconds value are different, sort by this */
 	return (secondobjinfoptr->time_s - firstobjinfoptr->time_s)*sortmultiplier;
-    } else {
+    } else {	/* if the timestamp seconds timestamp value are the same, check the ns */
 	if (firstobjinfoptr->time_ns != secondobjinfoptr->time_ns) {
+	    /* the timestamps ns values are different, sort by these */
 	    return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
 	} else {
-	    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
+	    /* the timestamps are the same (both s and ns), sort by name */
+	    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
 	}
     }
 }
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by size (with qsort).
+Comparison function for sorting objectinfotable by size (with qsort). The sort
+order is: size, then filename.
 *******************************************************************************/
 int compare_object_size_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
@@ -596,8 +608,8 @@ int compare_object_size_info(const void *firstptr, const void *secondptr) {
 	return sortmultiplier;
     } else if (firstobjinfoptr->size < secondobjinfoptr->size) {
 	return -sortmultiplier;
-    } else {
-	return 0;
+    } else {	/* If the sizes are the same size, sort by name */
+	return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
     }
 }
 
@@ -609,7 +621,7 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
-    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name)*sortmultiplier);
+    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
 }
 
 
@@ -1369,9 +1381,22 @@ int main(int argc, char *argv[]) {
     extern int		optind, optopt, opterr;
     int			optchar, optidx;
     struct rlimit	filelimits;
+    char		*langenvvarstr, *lccollateenvvarstr;
 
-    setlocale(LC_ALL, getenv("LANG"));
-    setlocale(LC_NUMERIC, "en_US.UTF-8");	/* always use '.' for 'decimal points' */
+    if ((langenvvarstr=getenv("LANG")) != NULL) {	/* If environment variable LANG is set */
+	setlocale(LC_ALL, langenvvarstr);		/* use LANG for the locale and object name sorting */
+	sortlocalename = newlocale(LC_COLLATE_MASK, langenvvarstr, NULL);
+    } else {						/* if LANG is not set, use C for both */
+	setlocale(LC_ALL, "C");
+	sortlocalename = newlocale(LC_COLLATE_MASK, "C", NULL);
+    }
+
+    if ((lccollateenvvarstr=getenv("LC_COLLATE")) != NULL) {	/* If environment variable LC_COLLATE is set */
+	/* use LC_COLLATE for object name sorting. This will overwride LANG when both are set */
+	sortlocalename = newlocale(LC_COLLATE_MASK, lccollateenvvarstr, NULL);
+    }
+
+    setlocale(LC_NUMERIC, "en_US.UTF-8");  /* Force the use of '.' for decimal points in numbers. Sorry ',' folks! */
 
     if (argc <= 1) {
 	display_usage_message(argv[0]);

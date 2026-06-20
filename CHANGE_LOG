@@ -1,4 +1,20 @@
 =============================================================================================
+v3.7.0 Sat Jun 20 14:59:57 AEST 2026
+
+1. Cater for 32bit OSs: change 1024L & 1000L to ULL, size_t to uint64_t for these values.
+
+2. Filename sort collation: change strcoll to strcoll_l.
+
+3. Sorting objects by size: add secondary sort by name for objects of the same size.
+   (Sort by time already had this.)
+
+4. If LANG is set, use this for displaying info messages (dates) and also set the filename
+   sort locale to use this value (sortlocalename). If LANG is not set, use "C" for both.
+
+5. If LC_COLLATE is set, use that for the filename sort locale. If both LANG and LC_COLLATE
+   are set, LC_COLLATE takes precedence - only for sorting filenames.
+
+=============================================================================================
 v3.6.1 Fri Apr 24 10:00:13 AEST 2026
 
 1. Fixed a bug (yes, an actual bug!). Sorting objects with very large sizes works as expected.
