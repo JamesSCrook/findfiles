@@ -439,33 +439,33 @@ i: start time:       1517270400.000000000s ~= Tue Jan 30 00:00:00 2018 UTC +0000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.250000000
 20180109_000000     21D_00:00:00               0   ./2018-01-09_00:00:00.000000000
 
-========== [LANG=es_ES.UTF-8 findfiles -vvf -m 20.0025D .] (FF_STARTTIME=20180130_000000) ==========
+========== [LANG=es_ES.UTF-8 findfiles -vvf -m 20,0025D .] (FF_STARTTIME=20180130_000000) ==========
 i: set starttime to '20180130_000000' with environment variable FF_STARTTIME
 i: start time:       1517270400.000000000s ~= mar ene 30 00:00:00 2018 UTC +0000
 i: target time:      1515542184.000000000s ~= mar ene 09 23:56:24 2018 UTC +0000
-i:      20.00250D ~=    1728216.000000000s last modified before (older than) target time ('20.0025D')
+i:      20,00250D ~=    1728216.000000000s last modified before (older than) target time ('20,0025D')
 i: start time:       1517270400.000000000s ~= mar ene 30 00:00:00 2018 UTC +0000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.750000000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.500000000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.250000000
 20180109_000000     21D_00:00:00               0   ./2018-01-09_00:00:00.000000000
 
-========== [LANG=de_DE.UTF-8 findfiles -vvf -m 20.0025D .] (FF_STARTTIME=20180130_000000) ==========
+========== [LANG=de_DE.UTF-8 findfiles -vvf -m 20,0025D .] (FF_STARTTIME=20180130_000000) ==========
 i: set starttime to '20180130_000000' with environment variable FF_STARTTIME
 i: start time:       1517270400.000000000s ~= Di Jan 30 00:00:00 2018 UTC +0000
 i: target time:      1515542184.000000000s ~= Di Jan 09 23:56:24 2018 UTC +0000
-i:      20.00250D ~=    1728216.000000000s last modified before (older than) target time ('20.0025D')
+i:      20,00250D ~=    1728216.000000000s last modified before (older than) target time ('20,0025D')
 i: start time:       1517270400.000000000s ~= Di Jan 30 00:00:00 2018 UTC +0000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.750000000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.500000000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.250000000
 20180109_000000     21D_00:00:00               0   ./2018-01-09_00:00:00.000000000
 
-========== [LANG=fr_FR.UTF-8 findfiles -vvf -m 20.0025D .] (FF_STARTTIME=20180130_000000) ==========
+========== [LANG=fr_FR.UTF-8 findfiles -vvf -m 20,0025D .] (FF_STARTTIME=20180130_000000) ==========
 i: set starttime to '20180130_000000' with environment variable FF_STARTTIME
 i: start time:       1517270400.000000000s ~= mar. janv. 30 00:00:00 2018 UTC +0000
 i: target time:      1515542184.000000000s ~= mar. janv. 09 23:56:24 2018 UTC +0000
-i:      20.00250D ~=    1728216.000000000s last modified before (older than) target time ('20.0025D')
+i:      20,00250D ~=    1728216.000000000s last modified before (older than) target time ('20,0025D')
 i: start time:       1517270400.000000000s ~= mar. janv. 30 00:00:00 2018 UTC +0000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.750000000
 20180109_000000     20D_23:59:59               0   ./2018-01-09_00:00:00.500000000

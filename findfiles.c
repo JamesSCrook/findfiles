@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.0"
+#define PROGRAMVERSIONSTRING	"3.7.1"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -115,7 +115,6 @@ last access and/or last modification times are both rare and uninteresting.
 #define REFMODTIMECHAR		'M'
 #define SECONDSUNITCHAR		's'
 #define BYTESUNITCHAR		'B'
-#define DECIMALSEPARATORCHAR	'.'
 #define POSITIVESIGNCHAR	'+'
 #define NEGATIVESIGNCHAR	'-'
 #define DEFAULTAGE		0
@@ -148,8 +147,6 @@ char	*datetimeformatstr;
 char	*ageformatstr;
 char	*infodatetimeformatstr;
 char	*timestampformatstr;
-
-locale_t sortlocalename;
 
 Envvar envvartable[] = {
     { "FF_AGEFORMAT",		"%7ldD_%02ld:%02ld:%02ld",	&ageformatstr },
@@ -220,6 +217,8 @@ int	numtargets		= 0;
 int	returncode		= 0;
 int 	filedescriptorsavailable;
 
+locale_t	sortlocale;
+
 /* Command line option flags - all set to false */
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
 int	recursiveflag		= 0;
@@ -238,6 +237,7 @@ int	sortmultiplier		= 1;
 off_t	selectobjectsize	= 0;
 char	secondsunitchar		= ' ';
 char	bytesunitchar		= ' ';
+char	decimalseparatorchar	= '.';
 int	selectsizecontrol	= SELECTALLSIZES;
 uid_t	selectuid		= SELECTALLUSERS;
 
@@ -590,7 +590,7 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
 	    return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
 	} else {
 	    /* the timestamps are the same (both s and ns), sort by name */
-	    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
+	    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
 	}
     }
 }
@@ -609,7 +609,7 @@ int compare_object_size_info(const void *firstptr, const void *secondptr) {
     } else if (firstobjinfoptr->size < secondobjinfoptr->size) {
 	return -sortmultiplier;
     } else {	/* If the sizes are the same size, sort by name */
-	return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
+	return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
     }
 }
 
@@ -621,7 +621,7 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
-    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocalename))*sortmultiplier;
+    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
 }
 
 
@@ -776,13 +776,13 @@ is called with a large integer (s), the fraction (ns) is sometimes rounded.
 See below. This function returns the correct number of nanoseconds.
 *******************************************************************************/
 time_t adjust_relative_age_seconds(const char *relativeagestr, int *timeunitptr) {
-    char	*decimalchptr, trimmedrelativeagestr[sizeof(NANOSECONDSSTR)-1] = { '\0' };
+    char	*decimalseparatorcharptr, trimmedrelativeagestr[sizeof(NANOSECONDSSTR)-1] = { '\0' };
     int		trimmedrelativeagestrlen, relativeage_ns = 0;
 
     *timeunitptr -= atoi(relativeagestr);	/* relativeage_s: integer */
-    if ((decimalchptr=strchr(relativeagestr, DECIMALSEPARATORCHAR)) != NULL) { /* fraction */
+    if ((decimalseparatorcharptr=strchr(relativeagestr, decimalseparatorchar)) != NULL) { /* fraction */
 	/* copy only up to 9 chars. (trimmedrelativeagestr is initialized to all '\0' chars) */
-	strncpy(trimmedrelativeagestr, decimalchptr+1, sizeof(NANOSECONDSSTR)-2);
+	strncpy(trimmedrelativeagestr, decimalseparatorcharptr+1, sizeof(NANOSECONDSSTR)-2);
 	/* if the last character is 's' (seconds), remove it from trimmedrelativeagestr */
 	trimmedrelativeagestrlen = strlen(trimmedrelativeagestr);
 	if (trimmedrelativeagestr[trimmedrelativeagestrlen-1] == 's') {
@@ -880,21 +880,21 @@ Epoch (s in *time_s_ptr and ns in *time_ns_ptr).
 *******************************************************************************/
 void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm *timeinfoptr, time_t *time_s_ptr, time_t *time_ns_ptr) {
     size_t	timestampformatstrlen;
-    char	*decimalchptr;
+    char	*decimalseparatorcharptr;
 
     *time_ns_ptr = DEFAULTAGE;		/* set to zero unless a fraction of a second is specified */
     /* convert the command line timeinfostr (eg, YYYYMMDD_HHMMSS) to a breakdown time structure (struct tm)
     and return a pointer to anything after the allowed format (formatstr), if any (which should be a decimal
     fraction of a second - eg, ".25" */
-    decimalchptr = strptime(timeinfostr, formatstr, timeinfoptr);
+    decimalseparatorcharptr = strptime(timeinfostr, formatstr, timeinfoptr);
 
     timeinfoptr->tm_isdst = -1; /* set is_dst to -1 so mktime will try to determine whether DST is in effect */
     *time_s_ptr = mktime(timeinfoptr);	/* convert the breakdowns time structure to the number of seconds */
 
-    if (decimalchptr == NULL) {
+    if (decimalseparatorcharptr == NULL) {
 	fprintf(stderr, "E: bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
 	exit(1);
-    } else if (*decimalchptr == DECIMALSEPARATORCHAR) {	/* if a DECIMALSEPARATORCHAR (decimal point) follows a valid timestamp */
+    } else if (*decimalseparatorcharptr == decimalseparatorchar) {	/* if a decimalseparatorchar follows a valid timestamp */
 	/* Ensure that the last characters of formatstr (eg, %Y%m%d_%H%M%S) are SECONDSFORMATSTR ("%S") */
 	timestampformatstrlen = strlen(formatstr);
 	if (timestampformatstrlen < sizeof(SECONDSFORMATSTR)-1 ||
@@ -903,10 +903,10 @@ void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm
 		formatstr, SECONDSFORMATSTR);
 	    exit(1);
 	}
-	*time_ns_ptr = convert_string_to_ns(decimalchptr+1);
-    } else if (*decimalchptr != '\0') {
+	*time_ns_ptr = convert_string_to_ns(decimalseparatorcharptr+1);
+    } else if (*decimalseparatorcharptr != '\0') {
 	fprintf(stderr, "E: Illegal timestamp character(s) starting at '%c' in timestamp '%s'\n",
-	    *decimalchptr, timeinfostr);
+	    *decimalseparatorcharptr, timeinfostr);
 	exit(1);
     }
 }
@@ -941,7 +941,8 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
     timeunitchar = *(timeinfostr+strlen(timeinfostr+1));
     localtime_r(&starttime_s, &timeinfo);
 
-    if (isdigit(timeunitchar) || timeunitchar == DECIMALSEPARATORCHAR) {	/* last character of timeinfostr is a digit or '.' */
+    /* is the last character of timeinfostr is a digit or a decimalseparatorchar? */
+    if (isdigit(timeunitchar) || timeunitchar == decimalseparatorchar) {
 	/*
 	Set the absolute time - for both (-m) modification and (-a) access - based on the
 	required format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
@@ -1373,8 +1374,24 @@ void set_select_user(char *optarg) {
 
 
 /*******************************************************************************
-Parse the command line arguments left to right, processing them in order. See
-the usage message.
+Create a locale for the specified categorymask from the specified environment variable (eg, LANG or LC_COLLATE).
+Return this locale upon success. Abort upon failure due to invalid value(s).
+*******************************************************************************/
+locale_t setlocalecategory(const char *envvarnamestr, int localecategorymask, const char *localestr, locale_t baselocale) {
+    locale_t	locale;
+
+    if ((locale=newlocale(localecategorymask, localestr, baselocale)) == (locale_t)0) {
+	fprintf(stderr, "E: Cannot set environment variable '%s' to '%s' illegal value, aborting. Note: categorymask=%x)\n",
+	    envvarnamestr, localestr, localecategorymask);
+	exit(1);
+    } else {
+	return locale;
+    }
+}
+
+
+/*******************************************************************************
+Parse the command line arguments left to right, processing them in order. See the usage message.
 *******************************************************************************/
 int main(int argc, char *argv[]) {
     extern char		*optarg;
@@ -1382,21 +1399,26 @@ int main(int argc, char *argv[]) {
     int			optchar, optidx;
     struct rlimit	filelimits;
     char		*langenvvarstr, *lccollateenvvarstr;
+    locale_t		locale;
+    struct lconv	*localedetailsptr;
 
-    if ((langenvvarstr=getenv("LANG")) != NULL) {	/* If environment variable LANG is set */
-	setlocale(LC_ALL, langenvvarstr);		/* use LANG for the locale and object name sorting */
-	sortlocalename = newlocale(LC_COLLATE_MASK, langenvvarstr, NULL);
-    } else {						/* if LANG is not set, use C for both */
-	setlocale(LC_ALL, "C");
-	sortlocalename = newlocale(LC_COLLATE_MASK, "C", NULL);
+    if ((langenvvarstr=getenv("LANG")) != NULL) {
+	/* if LANG is set (and valid), set the locale and sortlocale to this */
+	locale = setlocalecategory("LANG", LC_ALL_MASK, langenvvarstr, (locale_t)0);
+	sortlocale = setlocalecategory("LANG", LC_COLLATE_MASK, langenvvarstr, (locale_t)0);
+    } else {
+	/* if LANG is NOT set, set the locale and sortlocale to "C" */
+	locale = setlocalecategory("LANG", LC_ALL_MASK, "C", (locale_t)0);
+	sortlocale = setlocalecategory("LANG", LC_COLLATE_MASK, "C", (locale_t)0);
     }
-
-    if ((lccollateenvvarstr=getenv("LC_COLLATE")) != NULL) {	/* If environment variable LC_COLLATE is set */
-	/* use LC_COLLATE for object name sorting. This will overwride LANG when both are set */
-	sortlocalename = newlocale(LC_COLLATE_MASK, lccollateenvvarstr, NULL);
+    if ((lccollateenvvarstr=getenv("LC_COLLATE")) != NULL) {
+	/* if LC_COLLATE is set (and valid) set sortlocale - overwrides LANG if both are set */
+	sortlocale = setlocalecategory("LC_COLLATE", LC_COLLATE_MASK, lccollateenvvarstr, (locale_t)0);
     }
+    uselocale(locale);
 
-    setlocale(LC_NUMERIC, "en_US.UTF-8");  /* Force the use of '.' for decimal points in numbers. Sorry ',' folks! */
+    localedetailsptr = localeconv();	/* get the detail of the current locale */
+    decimalseparatorchar = *localedetailsptr->decimal_point;	/* set the decimal separator character */
 
     if (argc <= 1) {
 	display_usage_message(argv[0]);

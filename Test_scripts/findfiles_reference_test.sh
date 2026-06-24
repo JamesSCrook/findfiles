@@ -201,13 +201,20 @@ echo "Test LANG set to different locales"
 echo ======================================================================================================
 (
     export FF_STARTTIME=20180130_000000
-    for LANGLOCALE in en_US.UTF-8 es_ES.UTF-8 de_DE.UTF-8 fr_FR.UTF-8;  do
+
+    for LANGLOCALE in en_US.UTF-8;  do
 	CMD="LANG=$LANGLOCALE $FF -vvf -m 20.0025D ."
 	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
 	eval "$CMD" 2>&1
 	echo
     done
 
+    for LANGLOCALE in es_ES.UTF-8 de_DE.UTF-8 fr_FR.UTF-8;  do
+	CMD="LANG=$LANGLOCALE $FF -vvf -m 20,0025D ."
+	echo "========== [$CMD] (FF_STARTTIME=$FF_STARTTIME) =========="
+	eval "$CMD" 2>&1
+	echo
+    done
 )
 
 

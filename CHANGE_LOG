@@ -1,4 +1,24 @@
 =============================================================================================
+v3.7.1 Wed Jun 24 13:12:18 AEST 2026
+
+x. Replaced the 3.7.0 handling of LANG and LC_COLLATE so these values produce sorted output
+   the same as ls (when called with the same values for these environment variables).
+
+x. Added setlocalecategory to check if a locale is valid.
+
+x. Changed defined constant DECIMALSEPARATORCHAR (.) to variable decimalseparatorchar that
+   can be a different value - as extracted from the current locale. E.g., (,) for most (all?)
+   European languages:
+       LANG=en_AU.UTF-8 findfiles -vfr -m -0.25D	# Note: '.' (period/full stop)
+       LANG=fr_FR.UTF-8 findfiles -vfr -m -0,25D	# Note" ',' (comma)
+   Note, however: "thousands separators" are never allowed for any locale.
+
+x. Cosmetic changes.
+
+x. Updated findfiles_reference_test.sh and findfiles_reference_test_out to use
+   "European-style" decimal separator character (,) for relative age time times.
+
+=============================================================================================
 v3.7.0 Sat Jun 20 14:59:57 AEST 2026
 
 1. Cater for 32bit OSs: change 1024L & 1000L to ULL, size_t to uint64_t for these values.
