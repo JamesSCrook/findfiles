@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.1"
+#define PROGRAMVERSIONSTRING	"3.7.2"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -261,7 +261,7 @@ void display_usage_message(const char *progname) {
     printf("  ERE    : a POSIX-style Extended Regular Expression (pattern)\n");
     printf("  path   : the pathname of a reference object (file, directory, etc.)\n");
     printf("  target : the pathname of an object (file, directory, etc.) to search\n");
-    printf("  time   : an absolute date/time stamp value (eg, '20210630_121530.5')\n");
+    printf("  time   : an absolute date/time stamp value (eg, '20250630_121530.5')\n");
     printf(" OPTIONs - can be toggled on/off (parsed left to right):\n");
     printf("  -d|--directories : directories   (default off)\n");
     printf("  -f|--files       : regular files (default off)\n");
@@ -282,7 +282,7 @@ void display_usage_message(const char *progname) {
     printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
     printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= access ages (no default)\n");
     printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= mod ages (default 0s: any time)\n");
-    printf("  Times are absolute; eg, '-20211231_153000' & '20211231_153000' (using locale's timezone)\n");
+    printf("  Times are absolute; eg, '-20251231_153000' & '20251231_153000' (using locale's timezone)\n");
     printf("   -a|--acc-info [-|+]access_time       : - for older/=, [+] for newer/= access times (no default)\n");
     printf("   -m|--mod-info [-|+]modification_time : - for older/=, [+] for newer/= mod times (no default)\n");
     printf("  Reference times are absolute; eg: '-/tmp/f' & '/tmp/f'\n");
@@ -314,9 +314,9 @@ void display_usage_message(const char *progname) {
     printf("  -rfM -/etc/hosts /lib        # files in the /lib tree modified before /etc/hosts was\n");
     printf("  -vfm -3h / /tmp -fda 1h /var # files in / and /tmp modified <= 3 hours ago, and directories\n");
     printf("                               # (but NOT files) in /var accessed >= 1h ago, verbose output\n");
-    printf("  -f -m -20201231_010203.5 .   # files in . modified at or before 20201231_010203.5\n");
+    printf("  -f -m -20251231_010203.5 .   # files in . modified at or before 20251231_010203.5\n");
     printf("\n");
-    printf("findfiles Copyright (C) 2016-2026 James S. Crook\n");
+    printf("findfiles Copyright (C) 2016-2026 James S. Crook. Source: https://github.com/JamesSCrook/findfiles\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
     printf("This is free software, and you are welcome to redistribute it under certain conditions.\n");
     printf("This program is licensed under the terms of the GNU General Public License as published\n");
@@ -816,6 +816,9 @@ for 2 days ago or -a -10m for 10 minutes ago.
 *******************************************************************************/
 void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char timeunitchar) {
     time_t	relativeage_ns = DEFAULTAGE;
+    char	*charptr;
+    int		foundillegalcharflag = 0;
+    int		decimalseparatorcount = 0;
 
     switch (timeunitchar) {		/* set targettime relative to now */
 	case 's': relativeage_ns = adjust_relative_age_seconds(timeinfostr, &(timeinfoptr->tm_sec));
@@ -838,6 +841,22 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 	    exit(1);
     }
     targettime_s = mktime(timeinfoptr);
+
+    /* Check for illegal timeinfostr format. Loop though all but the last char of timeinfostr */
+    for (charptr=timeinfostr; charptr<timeinfostr+strlen(timeinfostr)-1; charptr++) {
+	if (*charptr == decimalseparatorchar) {
+	    decimalseparatorcount++;		/* count the decimal separator char(s) */
+	}
+	/* If this is an illegal character (non-digit or a decimal separator char) */
+	if (!isdigit(*charptr) && *charptr != decimalseparatorchar) {
+	    foundillegalcharflag = 1;
+	    break;
+	}
+    }
+    if (foundillegalcharflag || decimalseparatorcount > 1) {
+	fprintf(stderr, "E: Illegal character ('%c'): in relative age '%s'\n", *charptr, timeinfostr);
+	exit(1);
+    }
 
     /* Due to storing times in two variables (_s and _ns), it is necessary to add 1s to
 	the targettime_ns value and subtract 1s from the targettime_s value whenever
@@ -926,13 +945,13 @@ Set targettime from a command line argumet in one of two formats:
 In either case, a first character of '-' is used to set the newerthantargetflag.
 This function is called for both last access time and last modification time.
 *******************************************************************************/
-void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
+void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
     char	timeunitchar;
     struct tm	timeinfo;
     char	datestr[MAXDATESTRLENGTH];
     time_t	relativeage_s, relativeage_ns;
 
-    if (c == MODTIMEINFOCHAR) {
+    if (cmdlineoptchar == MODTIMEINFOCHAR) {
 	accesstimeflag = 0;
     } else {
 	accesstimeflag = 1;
@@ -943,8 +962,7 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
 
     /* is the last character of timeinfostr is a digit or a decimalseparatorchar? */
     if (isdigit(timeunitchar) || timeunitchar == decimalseparatorchar) {
-	/*
-	Set the absolute time - for both (-m) modification and (-a) access - based on the
+	/* Set the absolute time - for both (-m) modification and (-a) access - based on the
 	required format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
 	FF_TIMESTAMPFORMAT. It is possible to specify a subset of these. If not all of year to
 	second are specified, the values of the start time are used to fill the missing values.
@@ -1008,7 +1026,7 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char c) {
 Set targettime to be the same as that of the reference object's last modification
 or last access time, as required.
 *******************************************************************************/
-void set_target_time_by_object_time(char *targetobjectstr, char c) {
+void set_target_time_by_object_time(char *targetobjectstr, char cmdlineoptchar) {
     struct stat	statinfo;
     char	datestr[MAXDATESTRLENGTH];
 
@@ -1025,7 +1043,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char c) {
     }
 
     if (*targetobjectstr && (lstat(targetobjectstr, &statinfo) != -1)) {
-	if (c == REFMODTIMECHAR) {
+	if (cmdlineoptchar == REFMODTIMECHAR) {
 	    accesstimeflag = 0;
 	    targettime_s = statinfo.st_mtime;
 	    targettime_ns = statinfo.st_mtim.tv_nsec;
@@ -1497,6 +1515,10 @@ int main(int argc, char *argv[]) {
     /* Display starttime unless it's already been displayed (i.e., by setting targettime and/or starttime) */
     if (verbosity > 1 && targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE && !strcmp(starttimestr, NOWSTR)) {
 	list_starttime();
+    }
+
+    if (verbosity > 1) {
+	fprintf(stderr, "i: %d objects found\n", numobjsfound);
     }
 
     if (numtargets > 0) {
