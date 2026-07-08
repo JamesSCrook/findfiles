@@ -1,4 +1,30 @@
 =============================================================================================
+v3.7.3 Thu Jul  9 09:14:29 AEST 2026
+
+1. Fixed 3.7.2 bug where relative (+30D) & absolute (+20260102_030405) times starting with + failed.
+
+2. Improved the way locales are processed:
+    - Moved local processing to new function configure_locale - the first call in main
+    - Removed global variable sortlocale
+    - changed strcoll_l back to strcoll
+    - Process locale environment vars in this order:
+	A. If LANG is set to a valid value, set all locale categories to that, then...
+	B. If LC_COLLATE is set to a valid value, set that, then...
+	C. If LC_NUMERIC is set to a valid value, set that, then...
+	D. If LC_ALL is set to a valid value, set all locale categories to that
+    - Removed function setlocalecategory,
+    - Specifying an illegal relative age character now aborts with an error (was a warning).
+    - Cosmetic changes
+
+3. Changes to findfiles_regression_test.sh
+    - Added tests for plus sign (+) for ages & times (in addition to neither and minus sign)
+    - Added tests for -S/--sort-by-size, -T/--types and -z/--size
+    - Added tests for locale environtment variables LANG, LC_COLLATE, LC_NUMERIC and LC_ALL.
+    - Cosmetic changes
+
+4. findfiles_reference_test.sh - updated copyright date
+
+=============================================================================================
 v3.7.2 Thu Jun 25 09:50:34 AEST 2026
 
 1. Added command line targetage validation (eg, "-m 1x2.3s" will now abort).

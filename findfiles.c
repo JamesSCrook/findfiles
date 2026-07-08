@@ -71,7 +71,7 @@ Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
 It is assumed that, in general, the cases of file system objects having future
 last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.2"
+#define PROGRAMVERSIONSTRING	"3.7.3"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -216,8 +216,6 @@ int	numobjsfound		= 0;
 int	numtargets		= 0;
 int	returncode		= 0;
 int 	filedescriptorsavailable;
-
-locale_t	sortlocale;
 
 /* Command line option flags - all set to false */
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
@@ -590,7 +588,7 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
 	    return (secondobjinfoptr->time_ns - firstobjinfoptr->time_ns)*sortmultiplier;
 	} else {
 	    /* the timestamps are the same (both s and ns), sort by name */
-	    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
+	    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
 	}
     }
 }
@@ -609,7 +607,7 @@ int compare_object_size_info(const void *firstptr, const void *secondptr) {
     } else if (firstobjinfoptr->size < secondobjinfoptr->size) {
 	return -sortmultiplier;
     } else {	/* If the sizes are the same size, sort by name */
-	return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
+	return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
     }
 }
 
@@ -621,7 +619,7 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
     const Objectinfo	*secondobjinfoptr = secondptr;
 
-    return (strcoll_l(firstobjinfoptr->name, secondobjinfoptr->name, sortlocale))*sortmultiplier;
+    return (strcoll(firstobjinfoptr->name, secondobjinfoptr->name))*sortmultiplier;
 }
 
 
@@ -741,8 +739,9 @@ void check_integer(char *relativeagestr) {
     char	*chptr;
 
     for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
-	if (!isdigit(*chptr) && *chptr != NEGATIVESIGNCHAR && *chptr != POSITIVESIGNCHAR ) {
-	    fprintf(stderr, "W: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
+	if (!isdigit(*chptr) && *chptr != NEGATIVESIGNCHAR && *chptr != POSITIVESIGNCHAR) {
+	    fprintf(stderr, "E: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
+	    exit(-1);
 	}
     }
 }
@@ -843,7 +842,11 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
     targettime_s = mktime(timeinfoptr);
 
     /* Check for illegal timeinfostr format. Loop though all but the last char of timeinfostr */
-    for (charptr=timeinfostr; charptr<timeinfostr+strlen(timeinfostr)-1; charptr++) {
+    charptr=timeinfostr;
+    if (*charptr == NEGATIVESIGNCHAR || *charptr == POSITIVESIGNCHAR) {
+	charptr++;	/* If the first character is a +/- sign, skip it */
+    }
+    while (charptr < timeinfostr+strlen(timeinfostr)-1) {
 	if (*charptr == decimalseparatorchar) {
 	    decimalseparatorcount++;		/* count the decimal separator char(s) */
 	}
@@ -852,7 +855,9 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 	    foundillegalcharflag = 1;
 	    break;
 	}
+	charptr++;
     }
+
     if (foundillegalcharflag || decimalseparatorcount > 1) {
 	fprintf(stderr, "E: Illegal character ('%c'): in relative age '%s'\n", *charptr, timeinfostr);
 	exit(1);
@@ -969,18 +974,18 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
 	For example, one could set FF_TIMESTAMPFORMAT to 'date:%m%d, hour:%H' and specify only
 	'date:', month, day, ', hour:', and hour, e.g., 'date:1231, hour:23' - or '%d%m%H' and
 	'311223'). See strptime for details. */
-	if (*timeinfostr == NEGATIVESIGNCHAR ) {
+	if (*timeinfostr == NEGATIVESIGNCHAR) {
 	    newerthantargetflag = 0;
 	    timeinfostr++;
 	} else {
 	    newerthantargetflag = 1;
-	    if (*timeinfostr == POSITIVESIGNCHAR ) {
+	    if (*timeinfostr == POSITIVESIGNCHAR) {
 		timeinfostr++;
 	    }
 	}
 	convert_text_time_to_s_and_ns(timeinfostr, timestampformatstr, &timeinfo, &targettime_s, &targettime_ns);
     } else {	/* relative age */
-	if (*timeinfostr == NEGATIVESIGNCHAR ) {
+	if (*timeinfostr == NEGATIVESIGNCHAR) {
 	    /* eg, (-m) '-15D' find objects modified <= 15 days ago (newer than) */
 	    newerthantargetflag = 1;
 	    timeinfostr++;
@@ -1392,19 +1397,44 @@ void set_select_user(char *optarg) {
 
 
 /*******************************************************************************
-Create a locale for the specified categorymask from the specified environment variable (eg, LANG or LC_COLLATE).
-Return this locale upon success. Abort upon failure due to invalid value(s).
+Configure the locale. For each of these environment variables that are set AND valid, set
+the corresponding locale category in the order specified in localecategorytable. Setting
+LC_COLLATE and/or LC_NUMERIC values will overwrite those values if set by LANG.
+If LC_ALL is set, overwrite all the others.
 *******************************************************************************/
-locale_t setlocalecategory(const char *envvarnamestr, int localecategorymask, const char *localestr, locale_t baselocale) {
-    locale_t	locale;
+void configure_locale() {
+    size_t		localeidx;
+    char		*envvarstr;
+    locale_t		locale;
+    struct lconv	*localedetailsptr;
 
-    if ((locale=newlocale(localecategorymask, localestr, baselocale)) == (locale_t)0) {
-	fprintf(stderr, "E: Cannot set environment variable '%s' to '%s' illegal value, aborting. Note: categorymask=%x)\n",
-	    envvarnamestr, localestr, localecategorymask);
-	exit(1);
-    } else {
-	return locale;
+    typedef struct {
+	char	*envvarstr;
+	int	mask;
+    } Localecategory;
+
+    Localecategory localecategorytable[] = {
+	{ "LANG",	LC_ALL_MASK },		/* LANG/LC_ALL_MASK must be checked first! */
+	{ "LC_COLLATE", LC_COLLATE_MASK },
+	{ "LC_NUMERIC", LC_NUMERIC_MASK },
+	{ "LC_ALL",	LC_ALL_MASK },		/* LC_ALL/LC_ALL_MASK must be checked last! */
+    };
+
+    locale = (locale_t)0;
+    /* Loop through all the locale category entries */
+    for (localeidx=0; localeidx<sizeof(localecategorytable)/sizeof(Localecategory); localeidx++) {
+	if ((envvarstr=getenv(localecategorytable[localeidx].envvarstr)) != NULL) {
+	    /* If this environment variable is set, use the corresponding mask to alter the locale */
+	    if ((locale=newlocale(localecategorytable[localeidx].mask, envvarstr, locale)) == (locale_t)0) {
+		fprintf(stderr, "E: Cannot set environment variable '%s' to '%s' illegal value, aborting. Note: categorymask=%x)\n",
+		    localecategorytable[localeidx].envvarstr, envvarstr, localecategorytable[localeidx].mask);
+		exit(1);
+	    }
+	}
     }
+    uselocale(locale);
+    localedetailsptr = localeconv();				/* get the detail of the current locale */
+    decimalseparatorchar = *localedetailsptr->decimal_point;	/* set the decimal separator character */
 }
 
 
@@ -1416,27 +1446,8 @@ int main(int argc, char *argv[]) {
     extern int		optind, optopt, opterr;
     int			optchar, optidx;
     struct rlimit	filelimits;
-    char		*langenvvarstr, *lccollateenvvarstr;
-    locale_t		locale;
-    struct lconv	*localedetailsptr;
 
-    if ((langenvvarstr=getenv("LANG")) != NULL) {
-	/* if LANG is set (and valid), set the locale and sortlocale to this */
-	locale = setlocalecategory("LANG", LC_ALL_MASK, langenvvarstr, (locale_t)0);
-	sortlocale = setlocalecategory("LANG", LC_COLLATE_MASK, langenvvarstr, (locale_t)0);
-    } else {
-	/* if LANG is NOT set, set the locale and sortlocale to "C" */
-	locale = setlocalecategory("LANG", LC_ALL_MASK, "C", (locale_t)0);
-	sortlocale = setlocalecategory("LANG", LC_COLLATE_MASK, "C", (locale_t)0);
-    }
-    if ((lccollateenvvarstr=getenv("LC_COLLATE")) != NULL) {
-	/* if LC_COLLATE is set (and valid) set sortlocale - overwrides LANG if both are set */
-	sortlocale = setlocalecategory("LC_COLLATE", LC_COLLATE_MASK, lccollateenvvarstr, (locale_t)0);
-    }
-    uselocale(locale);
-
-    localedetailsptr = localeconv();	/* get the detail of the current locale */
-    decimalseparatorchar = *localedetailsptr->decimal_point;	/* set the decimal separator character */
+    configure_locale();
 
     if (argc <= 1) {
 	display_usage_message(argv[0]);

@@ -5,7 +5,7 @@
 ################################################################################
 
 ################################################################################
-# Copyright (C) 2016-2022 James S. Crook
+# Copyright (C) 2016-2026 James S. Crook
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,11 +19,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
-################################################################################
-
-################################################################################
-# Version 1.0	2019/04/23
-# Version 2.0	2021/11/06
 ################################################################################
 
 ################################################################################

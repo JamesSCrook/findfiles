@@ -5,7 +5,7 @@
 ################################################################################
 
 ################################################################################
-# Copyright (C) 2016-2022 James S. Crook
+# Copyright (C) 2016-2026 James S. Crook
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -22,13 +22,12 @@
 ################################################################################
 
 ################################################################################
-# 2023/03/14 - for findfiles version 3.1.1
-#
 # This script tests two versions of findfiles to detect differences in the
 # output they produce when they are called "at the same time" (see below) and
 # with the same command line arguments. The expectation is that this script will
 # be called with the old and new versions of findfiles - and, if all goes well,
-# the output should be identical.
+# the output should be identical (unless a feature has changed or a new one is
+# introduced).
 #
 # The test/debug environment variable FF_STARTTIME is used to ensure the two
 # invocations of findfiles behave as if though they had been started at exactly
@@ -58,6 +57,10 @@ if [ \! -x $EXE2 ]; then
 fi
 
 export FF_STARTTIME=$(date +%Y%m%d_%H%M%S).5
+FF_STARTTIME_COMMA=$(echo $FF_STARTTIME | sed 's/\./,/g')
+
+# N days in the past
+PASTTIMESTAMP=$(date -d @$(($(date +%s)-180*24*60*60)) +%Y%m%d_%H%M%S)
 
 STDOUTFILE1=/tmp/ff_rt_1_$$.out
 STDERRFILE1=/tmp/ff_rt_1_$$.err
@@ -71,8 +74,8 @@ STDERRDIFFS=/tmp/ff_rt_stderr_$$.dif
 # EXE1, EXE2 and ARGS are global variables, so compare has no arguments.
 ################################################################################
 function compare {
-    eval $EXE1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
-    eval $EXE2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
+    eval $ENVVARS $EXE1 $ARGS > $STDOUTFILE1 2> $STDERRFILE1 &
+    eval $ENVVARS $EXE2 $ARGS > $STDOUTFILE2 2> $STDERRFILE2 &
     wait
     
     diff $STDOUTFILE1 $STDOUTFILE2 > $STDOUTDIFFS
@@ -88,18 +91,18 @@ function compare {
     # handle all 4 cases of stdouts and stderr matching or not
     if [ $STDOUTDIFFRETVAL -eq 0 ]; then	# do the stdouts match?
 	if [ $STDERRDIFFRETVAL -eq 0 ]; then	# the stdouts match, do two stderrs match too?
-	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "[$ARGS]"
+	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "[$ENVVARS][$ARGS]"
 	else					# stdouts match, stderrs differ - display those details
 	    DIFFCOUNT=$((DIFFCOUNT+1))
-	    echo "=================== stderr is different ====================== $DIFFCOUNT"
-	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "[$ARGS]"
+	    echo "============================== stderr is different ================================= $DIFFCOUNT"
+	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "[$ENVVARS][$ARGS]"
 	    echo "------------------- stderr diffs ---------------------"
 	    cat $STDERRDIFFS
 	fi
     else
 	DIFFCOUNT=$((DIFFCOUNT+1))		# the stdouts differ, display those details
-	echo "=================== stdout is different ====================== $DIFFCOUNT"
-	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "[$ARGS]"
+	echo "============================== stdout is different ================================= $DIFFCOUNT"
+	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "[$ENVVARS][$ARGS]"
 	echo "------------------- stdout diffs ---------------------"
 	cat $STDOUTDIFFS
 	if [ $STDERRDIFFRETVAL -ne 0 ]; then	# if the stderr also differs, display those details
@@ -112,18 +115,25 @@ function compare {
 ################################################################################
 # Loop through all of the following findfiles sets of findfiles arguments and
 # call the compare function (which calls both of the findfiles executables).
+# Note: EXE1, EXE2, ENVVARS and ARGS are global variables!
 ###############################################################################
 DIFFCOUNT=0
+
+ENVVARS=""
 for ARGS in \
     "-fv /etc" \
-    "-fv -m   30D /etc" \
     "-fv -m  -30D /etc" \
-    "-fv -a   30D /etc" \
+    "-fv -m   30D /etc" \
+    "-fv -m  +30D /etc" \
     "-fv -a  -30D /etc" \
-    "-fv -M  /etc/vimrc /etc" \
+    "-fv -a   30D /etc" \
+    "-fv -a  +30D /etc" \
     "-fv -M -/etc/vimrc /etc" \
-    "-fv -A  /etc/vimrc /etc" \
+    "-fv -M  /etc/vimrc /etc" \
+    "-fv -M +/etc/vimrc /etc" \
     "-fv -A -/etc/vimrc /etc" \
+    "-fv -A  /etc/vimrc /etc" \
+    "-fv -A +/etc/vimrc /etc" \
 \
     "-fvsu  /etc" \
     "-fvsu  -m   30D /etc" \
@@ -171,26 +181,39 @@ for ARGS in \
     "-vfh /etc" \
     "-vfH /etc" \
 \
-    "-vf -S /etc" \
-    "-vf -z 5000 /etc" \
-    "-vf -N /etc/c*" \
-    "-vf -NR /etc/c*" \
+    "-vf -N  /etc" \
+    "-vf -NR /etc" \
+    "-vf -S  /etc" \
+    "-vf -SR /etc" \
+    "-vf -T  /etc" \
+    "-vf -TR /etc" \
+    "-vf -Sz -5000 /etc" \
+    "-vf -Sz  5000 /etc" \
+    "-vf -Sz +5000 /etc" \
 \
     "-vf -U 0 /etc" \
     "-vf -U 123456789012345 /etc" \
     "-vf -U root /etc" \
     "-vf -U GlUrBuSeR /etc" \
 \
+    "-fv -m -$PASTTIMESTAMP /etc" \
+    "-fv -m  $PASTTIMESTAMP /etc" \
+    "-fv -m +$PASTTIMESTAMP /etc" \
+\
 \
     "--files --verbose /etc" \
-    "--files --verbose --mod-info  30D /etc" \
     "--files --verbose --mod-info -30D /etc" \
-    "--files --verbose --acc-info  30D /etc" \
+    "--files --verbose --mod-info  30D /etc" \
+    "--files --verbose --mod-info +30D /etc" \
     "--files --verbose --acc-info -30D /etc" \
-    "--files --verbose --mod-ref  /etc/vimrc /etc" \
+    "--files --verbose --acc-info  30D /etc" \
+    "--files --verbose --acc-info +30D /etc" \
     "--files --verbose --mod-ref -/etc/vimrc /etc" \
-    "--files --verbose --acc-ref  /etc/vimrc /etc" \
+    "--files --verbose --mod-ref  /etc/vimrc /etc" \
+    "--files --verbose --mod-ref +/etc/vimrc /etc" \
     "--files --verbose --acc-ref -/etc/vimrc /etc" \
+    "--files --verbose --acc-ref  /etc/vimrc /etc" \
+    "--files --verbose --acc-ref +/etc/vimrc /etc" \
 \
     "--files --verbose --seconds --units /etc" \
     "--files --verbose --seconds --units --mod-info  30D /etc" \
@@ -233,21 +256,42 @@ for ARGS in \
     "--directories --files --verbose --pattern s /" \
     "--directories --files --verbose --recursive --ignore-case --pattern e --target /etc/X11" \
 \
-    "--verbose --files --sort-by-size /etc" \
-    "--verbose --files --size 5000 /etc" \
-    "--verbose --files --sort-by-name /etc/c*" \
-    "--verbose --files --sort-by-name --reverse /etc/c*" \
+    "--verbose --files --sort-by-name           /etc" \
+    "--verbose --files --sort-by-name --reverse /etc" \
+    "--verbose --files --sort-by-size           /etc" \
+    "--verbose --files --sort-by-size --reverse /etc" \
+    "--verbose --files --types           /etc" \
+    "--verbose --files --types --reverse /etc" \
+    "--verbose --files --sort-by-size --size -5000 /etc" \
+    "--verbose --files --sort-by-size --size  5000 /etc" \
+    "--verbose --files --sort-by-size --size +5000 /etc" \
 \
     "--verbose --files --user 0 /etc" \
     "--verbose --files --user 123456789012345 /etc" \
     "--verbose --files --user root /etc" \
     "--verbose --files --user GlUrBuSeR /etc" \
 \
-    "" \
+    "--verbose --files --mod-age -$PASTTIMESTAMP /etc" \
+    "--verbose --files --mod-age  $PASTTIMESTAMP /etc" \
+    "--verbose --files --mod-age +$PASTTIMESTAMP /etc" \
 
 do
-    compare	# Note: EXE1 EXE2 and ARGS are global variables!
+    compare
 done
+
+ARGS="-vvfN -m 0.5s /etc"
+ENVVARS="LANG=C";	 						compare
+ENVVARS="LANG=en_AU.UTF-8";						compare
+ENVVARS="LANG=en_US.UTF-8";						compare
+ENVVARS="LANG=en_US.UTF-8 LC_COLLATE=C";				compare
+ENVVARS="LANG=fr_FR.UTF-8 LC_NUMERIC=C";				compare
+
+ARGS="-vvfN -m 0,5s /etc"
+ENVVARS="LANG=fr_FR.UTF-8 FF_STARTTIME=$FF_STARTTIME_COMMA";		compare
+ENVVARS="LANG=fr_FR.UTF-8 FF_STARTTIME=$FF_STARTTIME_COMMA LC_ALL=C";	compare
+
+# Display the usage message
+ARGS="";	ENVVARS="";	compare
 
 echo "==============================================="
 echo "$DIFFCOUNT differences/problems/errors"
