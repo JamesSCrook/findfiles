@@ -39,7 +39,7 @@
  * findfiles sets "starttime" to the current system time when it starts.
  * targettime is calculated as either:
  * 1. Relative (to start time): Both of the optional age of last modification ('-m')
- *    and age of last access ('-a') calculate a "targettime" relative to "startime".
+ *    and age of last access ('-a') calculate a "targettime" relative to "starttime".
  *    Note that "targettime" is never later (larger than) "starttime".
  * 2. Absolute: e.g. YYYYMMDD_HHMMSS[.fraction_of_a_second]
  *
@@ -68,7 +68,7 @@
  * It is assumed that, in general, the cases of file system objects having future
  * last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.4"
+#define PROGRAMVERSIONSTRING	"3.7.5"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -243,7 +243,7 @@ void process_target_path(char *, int, int);
 int compare_object_time_info(const void *, const void *);
 int compare_object_size_info(const void *, const void *);
 
-/* Set the default object comparison function to compare by (modfication or access) time */
+/* Set the default object comparison function to compare by (modification or access) time */
 int (*compare_object_function_ptr)(const void *, const void *) = &compare_object_time_info;
 
 #define GETOPTSTR		"+dforiLp:P:x:X:t:D:U:V:z:a:m:A:M:hHnsuNRSTv"
@@ -335,7 +335,7 @@ void display_human_readable_size(size_t size) {
     float mantissa;
     size_t unitidx, divisor = 1;
 
-    /* Loop from index 0 to (max) N-2. That is, max N-1 interations! */
+    /* Loop from index 0 to (max) N-2. That is, max N-1 iterations! */
     for (unitidx=0; unitidx<numhumanunits-1; unitidx++) {
 	if (size < humanunittable[unitidx].sizelimit) {
 	    break;
@@ -365,14 +365,14 @@ void display_human_readable_size(size_t size) {
  * size is dynamically increased.
 *******************************************************************************/
 void process_target_object(char *pathname, struct stat *statinfo) {
-    char	objectname[MAXPATHLENGTH], *chptr;
+    char	objectname[MAXPATHLENGTH], *charptr;
     time_t	objecttime_s, objecttime_ns;
     Objectinfo	*oldobjectinfotable;
     int		idx, regexselectflag = 1;
 
     /* extract the object name after the last '/' char */
-    if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
-	strcpy(objectname, chptr+1);
+    if (((charptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(charptr+1) != '\0'){
+	strcpy(objectname, charptr+1);
     } else {
 	strcpy(objectname, pathname);
     }
@@ -527,7 +527,7 @@ void process_target_path(char *pathname, int recursiondepth, int trailingslashfl
 	if (S_ISDIR(statinfo.st_mode) && showdirectoriesflag) {
 	    process_target_object(pathname, &statinfo);
 	}
-	/* Note: if this target object is a smylink, process_target_object is called below */
+	/* Note: if this target object is a symlink, process_target_object is called below */
 
 	/* Is this a command line argument (directory or symlink/) and maxrecursiondepth > 0 */
 	if (recursiondepth == 0 && maxrecursiondepth > 0) {
@@ -560,7 +560,7 @@ void process_target_path(char *pathname, int recursiondepth, int trailingslashfl
  * information can be used by process_target_path (if required).
 *******************************************************************************/
 void process_CL_target_path(char *pathname) {
-    char	*chptr;
+    char	*charptr;
     int		trailingslashflag = 0;
 
     if (!showregularfilesflag && !showdirectoriesflag && !showotherobjectsflag) {
@@ -570,10 +570,10 @@ void process_CL_target_path(char *pathname) {
     }
 
     /* If pathname is not "/", remove all trailing '/' character(s) from pathname */
-    chptr = pathname + strlen(pathname) -1;
-    while (*chptr == '/' && chptr > pathname) {
+    charptr = pathname + strlen(pathname) -1;
+    while (*charptr == '/' && charptr > pathname) {
 	trailingslashflag = 1;
-	*chptr-- = '\0';
+	*charptr-- = '\0';
     }
 
     process_target_path(pathname, 0, trailingslashflag);	/* process this target pathname */
@@ -640,7 +640,7 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
 *******************************************************************************/
 void list_objects() {
     struct tm	*localtimeinfoptr;
-    char	objectagestr[MAXOBJAGESTRLEN], *chptr;
+    char	objectagestr[MAXOBJAGESTRLEN], *charptr;
     int		foundidx, negativeageflag;
     time_t	objectage_s, objectage_ns, absobjectage_s, days, hrs, mins, secs;
 
@@ -702,8 +702,8 @@ void list_objects() {
 		sprintf(objectagestr, ageformatstr, days, hrs, mins, secs);
 		/* if objectage_s is negative (future timestamp), display a - sign */
 		if (negativeageflag) {
-		    if ((chptr=strrchr(objectagestr, ' ')) != NULL) {
-			*chptr = NEGATIVESIGNCHAR; /* %07ld : OK for 999999 days - until the year 4707 */
+		    if ((charptr=strrchr(objectagestr, ' ')) != NULL) {
+			*charptr = NEGATIVESIGNCHAR; /* %07ld : OK for 999999 days - until the year 4707 */
 		    } else {
 			fprintf(stderr, "E: Insufficient 'days' field width in '%s'\n", ageformatstr);
 			exit(1);
@@ -724,7 +724,7 @@ void list_objects() {
 	    }
 	}
 
-	if (displaytypesflag) {		/* In order of expected frequencey (first 3, anyway) */
+	if (displaytypesflag) {		/* In order of expected frequency (first 3, anyway) */
 	    if      (S_ISREG( objectinfotable[foundidx].type)) printf("Fil ");
 	    else if (S_ISDIR( objectinfotable[foundidx].type)) printf("Dir ");
 	    else if (S_ISLNK( objectinfotable[foundidx].type)) printf("Sln ");
@@ -745,11 +745,11 @@ void list_objects() {
  * amount of time, but 1.33s, 0.25h, 0.5m, 0.1W, etc., all do.
 *******************************************************************************/
 void check_integer(char *relativeagestr) {
-    char	*chptr;
+    char	*charptr;
 
-    for (chptr=relativeagestr; chptr<relativeagestr+strlen(relativeagestr)-1; chptr++) {
-	if (!isdigit(*chptr) && *chptr != NEGATIVESIGNCHAR && *chptr != POSITIVESIGNCHAR) {
-	    fprintf(stderr, "E: non-integer character '%c' in '%s'!\n", *chptr, relativeagestr);
+    for (charptr=relativeagestr; charptr<relativeagestr+strlen(relativeagestr)-1; charptr++) {
+	if (!isdigit(*charptr) && *charptr != NEGATIVESIGNCHAR && *charptr != POSITIVESIGNCHAR) {
+	    fprintf(stderr, "E: non-integer character '%c' in '%s'!\n", *charptr, relativeagestr);
 	    exit(-1);
 	}
     }
@@ -762,14 +762,14 @@ void check_integer(char *relativeagestr) {
 *******************************************************************************/
 int convert_string_to_ns(char *fractionstr) {
     char	nanosecondsstr[] = NANOSECONDSSTR;
-    const char	*fromchptr = fractionstr;
-    char	*tochptr = nanosecondsstr+1;
+    const char	*fromcharptr = fractionstr;
+    char	*tocharptr = nanosecondsstr+1;
 
-    while (*fromchptr && *tochptr) {
-	if (isdigit(*fromchptr)) {
-	    *tochptr++ = *fromchptr++;
+    while (*fromcharptr && *tocharptr) {
+	if (isdigit(*fromcharptr)) {
+	    *tocharptr++ = *fromcharptr++;
 	} else {
-	    fprintf(stderr, "E: Illegal character ('%c') in time fraction string '%s'\n", *fromchptr, fractionstr);
+	    fprintf(stderr, "E: Illegal character ('%c') in time fraction string '%s'\n", *fromcharptr, fractionstr);
 	    exit(1);
 	}
     }
@@ -949,7 +949,7 @@ void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm
 
 
 /*******************************************************************************
- * Set targettime from a command line argumet in one of two formats:
+ * Set targettime from a command line argument in one of two formats:
  * 1. When the last character of timeinfostr is one of Y, M, D, h, m or s: by
  *    subtracting the relative) "age" command line argument, e.g., "15D" from
  *    starttime. Note: targettime will always be less than starttime. I.e., "-30s"
@@ -1271,23 +1271,23 @@ void grab_environment_variables() {
 void set_cmd_line_envvar(const char *inputstr) {
     struct tm		timeinfo;
     unsigned int	idx;
-    char		*chptr;
+    char		*charptr;
     int			foundflag = 0;
 
-    if ((chptr=strchr(inputstr, '=')) != NULL) {
-	*chptr++ = '\0';
+    if ((charptr=strchr(inputstr, '=')) != NULL) {
+	*charptr++ = '\0';
 	for (idx=0; idx<sizeof(envvartable)/sizeof(Envvar); idx++) {
 	    if (!strcmp(inputstr, envvartable[idx].name)) {
 		if (!strcmp(inputstr, FF_STARTTIMESTR)) {	/* set the start time - special case */
-		    convert_text_time_to_s_and_ns(chptr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
-		    fprintf(stderr, "i: set starttime to '%s' with command line variable %s\n", chptr, FF_STARTTIMESTR);
+		    convert_text_time_to_s_and_ns(charptr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
+		    fprintf(stderr, "i: set starttime to '%s' with command line variable %s\n", charptr, FF_STARTTIMESTR);
 		    if (targettime_s != DEFAULTAGE || targettime_ns != DEFAULTAGE) {
 			fprintf(stderr, "W: Attention: %s has been overwritten with a new value!\n", FF_STARTTIMESTR);
 		    }
 		    list_starttime();
 		}
-		*envvartable[idx].valueptr = malloc(strlen(chptr)+1);
-		strcpy(*envvartable[idx].valueptr, chptr);
+		*envvartable[idx].valueptr = malloc(strlen(charptr)+1);
+		strcpy(*envvartable[idx].valueptr, charptr);
 		foundflag = 1;
 	    }
 	}
@@ -1358,19 +1358,19 @@ void set_select_size(const char *optarg) {
 *******************************************************************************/
 void set_select_user(char *optarg) {
     struct passwd	*passwordptr;
-    char		*chptr;
+    char		*charptr;
     int			uid = SELECTALLUSERS, alldigitsflag = 1, userfoundflag = 0;
 
     /* If a userID is specified with ONE leading '+' sign, allow it (skip it and proceed) */
     if (*optarg == POSITIVESIGNCHAR) {
-	chptr = optarg+1;
+	charptr = optarg+1;
     } else {
-	chptr = optarg;
+	charptr = optarg;
     }
 
     /* If the -U [+]userID is a string in the format of a positive integer (all digits) ... */
-    while (*chptr != '\0') {
-	if (!isdigit(*chptr++)) {
+    while (*charptr != '\0') {
+	if (!isdigit(*charptr++)) {
 	    alldigitsflag = 0;
 	    break;
 	}
@@ -1479,7 +1479,7 @@ int main(int argc, char *argv[]) {
 	}
     }
 
-    /* Get the file desciptor soft limit */
+    /* Get the file descriptor soft limit */
     if (getrlimit(RLIMIT_NOFILE, &filelimits) == -1) {
         perror("E: could not get file descriptor limits");
 	exit(1);

@@ -1,4 +1,11 @@
 =============================================================================================
+v3.7.5 Thu Aug  6 08:39:56 AEST 2026
+
+1. Changed *chptr to *charptr (eg "chptr -> charptr and tochptr -> tocharptr).
+
+2. Fixed spelling mistakes in comments.
+
+=============================================================================================
 v3.7.4 Wed Aug  5 16:21:45 AEST 2026
 
 1. Refactored all the process_*path functions to make them more readable.
