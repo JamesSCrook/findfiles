@@ -1,4 +1,19 @@
 =============================================================================================
+v3.7.4 Wed Aug  5 16:21:45 AEST 2026
+
+1. Refactored all the process_*path functions to make them more readable.
+
+2. 1. fixed a bug when calling with a CL target of "//", "///", etc, failed.
+
+3. Changed regularfileflag,      directoryflag       and otherobjectflag to 
+           showregularfilesflag, showdirectoriesflag and showotherobjectsflag
+
+4. Changed multi-line comment style
+
+5. Added more tests in findfiles_reference_test.sh and findfiles_regression_test.sh and
+   updated findfiles_reference_test_output.
+
+=============================================================================================
 v3.7.3 Thu Jul  9 09:14:29 AEST 2026
 
 1. Fixed 3.7.2 bug where relative (+30D) & absolute (+20260102_030405) times starting with + failed.

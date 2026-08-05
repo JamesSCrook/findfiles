@@ -121,6 +121,9 @@ DIFFCOUNT=0
 
 ENVVARS=""
 for ARGS in \
+    "-vdT /" \
+    "-vdT //" \
+\
     "-fv /etc" \
     "-fv -m  -30D /etc" \
     "-fv -m   30D /etc" \
@@ -134,6 +137,9 @@ for ARGS in \
     "-fv -A -/etc/vimrc /etc" \
     "-fv -A  /etc/vimrc /etc" \
     "-fv -A +/etc/vimrc /etc" \
+\
+    "-fv /etc/" \
+    "-fv /etc//" \
 \
     "-fvsu  /etc" \
     "-fvsu  -m   30D /etc" \
@@ -201,6 +207,9 @@ for ARGS in \
     "-fv -m +$PASTTIMESTAMP /etc" \
 \
 \
+    "--verbose --directories --types /" \
+    "--verbose --directories --types //" \
+\
     "--files --verbose /etc" \
     "--files --verbose --mod-info -30D /etc" \
     "--files --verbose --mod-info  30D /etc" \
@@ -214,6 +223,9 @@ for ARGS in \
     "--files --verbose --acc-ref -/etc/vimrc /etc" \
     "--files --verbose --acc-ref  /etc/vimrc /etc" \
     "--files --verbose --acc-ref +/etc/vimrc /etc" \
+\
+    "--files --verbose /etc/" \
+    "--files --verbose /etc//" \
 \
     "--files --verbose --seconds --units /etc" \
     "--files --verbose --seconds --units --mod-info  30D /etc" \

@@ -1,77 +1,74 @@
 /*******************************************************************************
-********************************************************************************
-
-findfiles: find files based on various selection criteria
-Copyright (C) 2016-2026 James S. Crook
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
-********************************************************************************
+ * findfiles: find files based on various selection criteria
+ * Copyright (C) 2016-2026 James S. Crook
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
 *******************************************************************************/
 
 /*******************************************************************************
-findfiles searches Linux/UNIX file systems for objects (files, directories and
-"other") and lists them in sorted order of last modification and/or last access.
-
-The behavior is controlled by command line arguments as follows:
- 1. arguments are processed left-to-right
- 2. only specified target(s) are searched
- 3. (optional) selection by last modification age(s) or timestamp(s)
- 4. (optional) selection by last access age(s) or timestamp(s)
- 5. (optional) selection by object name pattern matching using ERE(s)
-See the usage/help message for additional options.
-
-There are 3 main "times": "starttime", "targettime" and "objecttime"
-Like the OS, findfiles stores each of these in two separate variables:
- "starttime"  is actually  starttime_s and  starttime_ns
- "targettime" is actually targettime_s and targettime_ns
- "objecttime" is actually objecttime_s and objecttime_ns
-These are the number of seconds (s) & nanoseconds (ns) since "the epoch"
-(1970-01-01 00:00:00.000000000).
-
-findfiles sets "starttime" to the current system time when it starts.
-targettime is calculated as either:
-1. Relative (to start time): Both of the optional age of last modification ('-m')
-   and age of last access ('-a') calculate a "targettime" relative to "startime".
-   Note that "targettime" is never later (larger than) "starttime".
-2. Absolute: e.g. YYYYMMDD_HHMMSS[.fraction_of_a_second]
-
-Here is a timeline with time increasing to the right:
-
-                                 "targettime"                   "starttime"
-                                 v                              v
--------------olderthanttargettimeInewerthanttargettime---------------> -m & -a
-------------olderthanttargettime) (newerthanttargettime--------------> -M & -A
-
-For example:
- "-fm -10m" : find files modified <= 10 mins ago (modified after "targettime")
- "-fm  10m" : find files modified >= 10 mins ago (modified before "targettime")
-Note that in both cases, "targettime" is 10 minutes _before_ "starttime"! So,
-the numerical value and unit ("10m", in both cases above) sets "targettime" to
-10 minutes before "starttime", and "-" causes findfiles to list objects last
-modified/accessed more recently ("newer") than "targettime".
-
-The optional last modification reference object ("-M") and last access reference
-object ("-A") use the minus sign ("-") in the same way as "-m" and "-a". I.e.,
- "-fA -ref_file" : find files accessed after ref_file was (after "targettime")
- "-fA  ref_file" : find files accessed before ref_file was (before "targettime")
-
-Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
-
-It is assumed that, in general, the cases of file system objects having future
-last access and/or last modification times are both rare and uninteresting.
+ * findfiles searches Linux/UNIX file systems for objects (files, directories and
+ * "other") and lists them in sorted order of last modification and/or last access.
+ *
+ * The behavior is controlled by command line arguments as follows:
+ *  1. arguments are processed left-to-right
+ *  2. only specified target(s) are searched
+ *  3. (optional) selection by last modification age(s) or timestamp(s)
+ *  4. (optional) selection by last access age(s) or timestamp(s)
+ *  5. (optional) selection by object name pattern matching using ERE(s)
+ * See the usage/help message for additional options.
+ *
+ * There are 3 main "times": "starttime", "targettime" and "objecttime"
+ * Like the OS, findfiles stores each of these in two separate variables:
+ *  "starttime"  is actually  starttime_s and  starttime_ns
+ *  "targettime" is actually targettime_s and targettime_ns
+ *  "objecttime" is actually objecttime_s and objecttime_ns
+ * These are the number of seconds (s) & nanoseconds (ns) since "the epoch"
+ * (1970-01-01 00:00:00.000000000).
+ *
+ * findfiles sets "starttime" to the current system time when it starts.
+ * targettime is calculated as either:
+ * 1. Relative (to start time): Both of the optional age of last modification ('-m')
+ *    and age of last access ('-a') calculate a "targettime" relative to "startime".
+ *    Note that "targettime" is never later (larger than) "starttime".
+ * 2. Absolute: e.g. YYYYMMDD_HHMMSS[.fraction_of_a_second]
+ *
+ * Here is a timeline with time increasing to the right:
+ *
+ *                                  "targettime"                   "starttime"
+ *                                  v                              v
+ * -------------olderthanttargettimeInewerthanttargettime---------------> -m & -a
+ * ------------olderthanttargettime) (newerthanttargettime--------------> -M & -A
+ *
+ * For example:
+ *  "-fm -10m" : find files modified <= 10 mins ago (modified after "targettime")
+ *  "-fm  10m" : find files modified >= 10 mins ago (modified before "targettime")
+ * Note that in both cases, "targettime" is 10 minutes _before_ "starttime"! So,
+ * the numerical value and unit ("10m", in both cases above) sets "targettime" to
+ * 10 minutes before "starttime", and "-" causes findfiles to list objects last
+ * modified/accessed more recently ("newer") than "targettime".
+ *
+ * The optional last modification reference object ("-M") and last access reference
+ * object ("-A") use the minus sign ("-") in the same way as "-m" and "-a". I.e.,
+ *  "-fA -ref_file" : find files accessed after ref_file was (after "targettime")
+ *  "-fA  ref_file" : find files accessed before ref_file was (before "targettime")
+ *
+ * Note that "-m" and "-a" use <= and/or >=, but "-M" and "-A" use < and/or >!
+ *
+ * It is assumed that, in general, the cases of file system objects having future
+ * last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.3"
+#define PROGRAMVERSIONSTRING	"3.7.4"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -161,8 +158,10 @@ typedef struct {
     size64_t	sizelimit;
 } Unitinfo;
 
-/* Units to display after suitably scaled numbers for "human readable" file size output
-These should all be the same length and have no whitespace (sort of "right justified"). */
+/*
+ * Units to display after suitably scaled numbers for "human readable" file size output
+ * These should all be the same length and have no whitespace (sort of "right justified").
+ */
 Unitinfo humanunit1024table[] = {
     { "__B",                                         1024ULL },
     { "kiB",                                 1024ULL*1024ULL },
@@ -221,9 +220,9 @@ int 	filedescriptorsavailable;
 int	maxrecursiondepth	= MAXRECURSIONDEPTH;
 int	recursiveflag		= 0;
 int	ignorecaseflag		= 0;
-int	regularfileflag		= 0;
-int	directoryflag		= 0;
-int	otherobjectflag		= 0;
+int	showregularfilesflag	= 0;
+int	showdirectoriesflag	= 0;
+int	showotherobjectsflag	= 0;
 int	verbosity		= 0;
 int	displaysecondsflag	= 0;
 int	displaynsecflag		= 0;
@@ -240,7 +239,7 @@ int	selectsizecontrol	= SELECTALLSIZES;
 uid_t	selectuid		= SELECTALLUSERS;
 
 /* function prototypes */
-void process_directory(char *, int);
+void process_target_path(char *, int, int);
 int compare_object_time_info(const void *, const void *);
 int compare_object_size_info(const void *, const void *);
 
@@ -249,7 +248,7 @@ int (*compare_object_function_ptr)(const void *, const void *) = &compare_object
 
 #define GETOPTSTR		"+dforiLp:P:x:X:t:D:U:V:z:a:m:A:M:hHnsuNRSTv"
 /*******************************************************************************
-Display the usage (help) message.
+ * Display the usage (help) message.
 *******************************************************************************/
 void display_usage_message(const char *progname) {
     printf("usage (version %s):\n", PROGRAMVERSIONSTRING);
@@ -324,134 +323,10 @@ void display_usage_message(const char *progname) {
 
 
 /*******************************************************************************
-Process a (file system) object - eg, a regular file, directory, symbolic
-link, fifo, special file, etc. If the object's attributes satisfy the command
-line arguments (i.e., the name matches the 'pattern(s)' - actually, Extended
-Regular Expression(s) or  ERE(s), the access xor modification time, etc. then,
-this object is appended to the objectinfotable. If objectinfotable is full, its
-size is dynamically increased.
-*******************************************************************************/
-void process_object(char *pathname) {
-    struct	stat statinfo;
-    char	objectname[MAXPATHLENGTH], *chptr;
-    time_t	objecttime_s, objecttime_ns;
-    Objectinfo	*oldobjectinfotable;
-    int		idx, regexselectflag = 1;
-
-    /* extract the object name after the last '/' char */
-    if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
-	strcpy(objectname, chptr+1);
-    } else {
-	strcpy(objectname, pathname);
-    }
-
-    /* if there is/are any ERE(s), loop through them all. If _all_ entries are either
-     * '-p match' or '-x non-match', this object is selected. If even one entry is a
-     * '-p non-match' or '-x match', this object is skipped. ERE(s) are checked in CLI order.
-    */
-    for (idx=0; idx<numeres; idx++) {	/* this for loop is skipped when numeres is 0 */
-	if (regexec(&eretable[idx].compiledere, objectname, (size_t)0, NULL, 0) != eretable[idx].matchcode) {
-	    regexselectflag = 0;	/* -p non-match or -x match: skip this object */
-	    break;			/* no need to check any later ERE(s) */
-	}
-    }
-
-    if (regexselectflag) {
-	if (lstat(pathname, &statinfo) == -1) {
-	    fprintf(stderr, "W: process_object: Cannot access '%s'\n", pathname);
-	    returncode = 1;
-	    return;
-	}
-
-	if (accesstimeflag) {
-	    objecttime_s = statinfo.st_atime;
-	    objecttime_ns = statinfo.st_atim.tv_nsec;
-	} else {
-	    objecttime_s = statinfo.st_mtime;
-	    objecttime_ns = statinfo.st_mtim.tv_nsec;
-	}
-
-	if (
-	    /* If the object's (modification xor access) time is such that it should be selected */
-	    (
-		(targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
-		( newerthantargetflag && (objecttime_s > targettime_s || (objecttime_s == targettime_s && objecttime_ns >= targettime_ns))) ||
-		(!newerthantargetflag && (objecttime_s < targettime_s || (objecttime_s == targettime_s && objecttime_ns <= targettime_ns)))
-	    ) &&
-	    /* AND the object's size is such that it should be selected */
-	    (
-		(selectsizecontrol == SELECTALLSIZES) ||
-		(selectsizecontrol == SELECTLARGERSIZES  && statinfo.st_size >= selectobjectsize) ||
-		(selectsizecontrol == SELECTSMALLERSIZES && statinfo.st_size <= selectobjectsize)
-	    ) &&
-	    /* AND the object is owned by a user to be selected */
-	    (
-		((int)selectuid == SELECTALLUSERS || selectuid == statinfo.st_uid)
-	    )
-	) {
-	    if (numobjsfound >= maxnumberobjects) {
-		if (maxnumberobjects <= MAXNUMOBJSMLTLIM) {
-		    maxnumberobjects *= MAXNUMOBJSMLTFCT;
-		} else {
-		    maxnumberobjects += MAXNUMOBJSINCVAL;
-		}
-		oldobjectinfotable = objectinfotable;
-		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
-		    perror("E: insufficient memory - realloc failed");
-		    free(oldobjectinfotable);		/* Only here to make Cppcheck happy */
-		    exit(1);
-		}
-	    }
-
-	    if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
-		perror("E: insufficient memory - malloc failed");
-		exit(1);
-	    }
-	    strcpy(objectinfotable[numobjsfound].name, pathname);
-	    objectinfotable[numobjsfound].size = statinfo.st_size;
-	    objectinfotable[numobjsfound].type = statinfo.st_mode;
-	    objectinfotable[numobjsfound].uid  = statinfo.st_uid;
-	    objectinfotable[numobjsfound].time_s = objecttime_s;
-	    objectinfotable[numobjsfound].time_ns = objecttime_ns;
-	    numobjsfound++;
-	}
-    }
-}
-
-
-/*******************************************************************************
-Strip any trailing '/' character(s) from pathname. This function is called when
-processing a directory or a symbolic link to a directory at recursion level 0
-(so, specified on the command line). It seems that many *NIX commands process
-'dirsymlink' and 'dirsymlink/' differently. When processing symbolic links to
-directories, there are two cases:
-1. When -L is not specified (the default): findfiles reproduces the behavior of
-   find (et al). A command line symbolic link target WITH a trailing slash ('/')
-   (eg, 'dirsymlink/') is followed, but when such a target has no trailing
-   slash (eg, 'dirsymlink') the symbolic link is NOT followed.
-2. When -L is specified: findfiles always follows all symbolic links.
-In the words of one of my old project managers at the Cupertino HP UNIX lab in
-1987, "standard is better than better". I still don't like it, though.
-*******************************************************************************/
-void trim_trailing_slashes(char *pathname) {
-    char	*chptr;
-    int		len;
-
-    len = strlen(pathname);
-    if (len > 1) {		/* handle the special case of '/' correctly */
-	chptr = pathname+len-1;
-	while (chptr >= pathname && *chptr == PATHDELIMITERCHAR) {
-	    *chptr-- = '\0';
-	}
-    }
-}
-
-
-/*******************************************************************************
-Very large numbers can be difficult to read - especially when they have no
-thousands separators. This function displays object sizes with a suitably scaled
-decimal part (a "mantissa" of sorts) and a suitable unit (eg, "GiB").  For
-example, an object of size 1000000000B is displayed as "1.00MB" or "954MiB".
+ * Very large numbers can be difficult to read - especially when they have no
+ * thousands separators. This function displays object sizes with a suitably scaled
+ * decimal part (a "mantissa" of sorts) and a suitable unit (eg, "GiB").  For
+ * example, an object of size 1000000000B is displayed as "1.00MB" or "954MiB".
 *******************************************************************************/
 #define TENLIMIT	9.9999	/* Prevent printf rounding issues with 10 */
 #define HUNDREDLIMIT	99.999	/* Prevent printf rounding issues with 100 */
@@ -482,63 +357,99 @@ void display_human_readable_size(size_t size) {
 
 
 /*******************************************************************************
-Process a (file system) pathname (a file, directory or "other" object).
+ * Process a (file system) target object - eg, a regular file, directory, symbolic
+ * link, fifo, special file, etc. If the object's attributes satisfy the command
+ * line arguments (i.e., the name matches the 'pattern(s)' - actually, Extended
+ * Regular Expression(s) or  ERE(s), the access xor modification time, etc. then,
+ * this object is appended to the objectinfotable. If objectinfotable is full, its
+ * size is dynamically increased.
 *******************************************************************************/
-void process_path(char *pathname, int recursiondepth) {
-    struct stat	statinfo;
+void process_target_object(char *pathname, struct stat *statinfo) {
+    char	objectname[MAXPATHLENGTH], *chptr;
+    time_t	objecttime_s, objecttime_ns;
+    Objectinfo	*oldobjectinfotable;
+    int		idx, regexselectflag = 1;
 
-    if (!regularfileflag && !directoryflag && !otherobjectflag) {
-	fprintf(stderr, "W: Please choose at least one object type (-f, -d or -o) for '%s'!\n", pathname);
-	returncode = 1;
-	return;
+    /* extract the object name after the last '/' char */
+    if (((chptr=strrchr(pathname, PATHDELIMITERCHAR)) != NULL) && *(chptr+1) != '\0'){
+	strcpy(objectname, chptr+1);
+    } else {
+	strcpy(objectname, pathname);
     }
 
-    if (lstat(pathname, &statinfo) == -1) {
-	fprintf(stderr, "W: process_path: Cannot access '%s'\n", pathname);
-	returncode = 1;
-	return;
+    /*
+     * If there is/are any ERE(s), loop through them all. An ojbect is selected until one of
+     * the ERE(s) causes it to be rejected - at which point, no further ERE checking is done.
+     */
+    for (idx=0; idx<numeres; idx++) {	/* this for loop is skipped when numeres is 0 */
+	if (regexec(&eretable[idx].compiledere, objectname, (size_t)0, NULL, 0) != eretable[idx].matchcode) {
+	    regexselectflag = 0;	/* reject this object if there is a pattern (-p/-P) no-match or an exclude (-x/-X) match */
+	    break;			/* no need to check any subsequent ERE(s) */
+	}
     }
 
-    if (S_ISREG(statinfo.st_mode)) {		/* process a "regular" file */
-	if (regularfileflag) {
-	    process_object(pathname);
-	}
-    /* process a directory or symlink to a directory if followsymlinksflag is set */
-    } else if (S_ISDIR(statinfo.st_mode) || (S_ISLNK(statinfo.st_mode) && followsymlinksflag)) {
-	if (recursiondepth == 0) {
-	   trim_trailing_slashes(pathname);
-	}
-	if (directoryflag) {
-	    process_object(pathname);
+    if (regexselectflag) {
+	if (accesstimeflag) {
+	    objecttime_s = statinfo->st_atime;
+	    objecttime_ns = statinfo->st_atim.tv_nsec;
+	} else {
+	    objecttime_s = statinfo->st_mtime;
+	    objecttime_ns = statinfo->st_mtim.tv_nsec;
 	}
 
-	/* Is this a command line argument (directory or symlink/) AND maxrecursiondepth > 0 */
-	if (recursiondepth == 0 && maxrecursiondepth > 0) {
-	    process_directory(pathname, recursiondepth);
-	} else if (recursiveflag) {
-	    if (recursiondepth < maxrecursiondepth && recursiondepth < filedescriptorsavailable) {
-		process_directory(pathname, recursiondepth);
-	    } else {
-		fprintf(stderr, "W: Cannot traverse directory '%s' (depth %d)\n", pathname, recursiondepth);
-		if (recursiondepth >= maxrecursiondepth) {
-		    fprintf(stderr, "W: Maximum tree traversal depth is %d\n", maxrecursiondepth);
+	if (
+	    /* If the object's (modification xor access) time is such that it should be selected */
+	    (
+		(targettime_s == DEFAULTAGE && targettime_ns == DEFAULTAGE) ||
+		( newerthantargetflag && (objecttime_s > targettime_s || (objecttime_s == targettime_s && objecttime_ns >= targettime_ns))) ||
+		(!newerthantargetflag && (objecttime_s < targettime_s || (objecttime_s == targettime_s && objecttime_ns <= targettime_ns)))
+	    ) &&
+	    /* AND the object's size is such that it should be selected */
+	    (
+		(selectsizecontrol == SELECTALLSIZES) ||
+		(selectsizecontrol == SELECTLARGERSIZES  && statinfo->st_size >= selectobjectsize) ||
+		(selectsizecontrol == SELECTSMALLERSIZES && statinfo->st_size <= selectobjectsize)
+	    ) &&
+	    /* AND the object is owned by a user to be selected */
+	    (
+		((int)selectuid == SELECTALLUSERS || selectuid == statinfo->st_uid)
+	    )
+	) {
+	    if (numobjsfound >= maxnumberobjects) {
+		if (maxnumberobjects <= MAXNUMOBJSMLTLIM) {
+		    maxnumberobjects *= MAXNUMOBJSMLTFCT;
+		} else {
+		    maxnumberobjects += MAXNUMOBJSINCVAL;
 		}
-		if (recursiondepth >= filedescriptorsavailable) {
-		    fprintf(stderr, "W: (soft) file descriptor limit is %d\n", filedescriptorsavailable);
+		oldobjectinfotable = objectinfotable;
+		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
+		    perror("E: insufficient memory - realloc failed");
+		    free(oldobjectinfotable);		/* Only here to make Cppcheck happy */
+		    exit(1);
 		}
 	    }
+
+	    if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
+		perror("E: insufficient memory - malloc failed");
+		exit(1);
+	    }
+	    strcpy(objectinfotable[numobjsfound].name, pathname);
+	    objectinfotable[numobjsfound].size = statinfo->st_size;
+	    objectinfotable[numobjsfound].type = statinfo->st_mode;
+	    objectinfotable[numobjsfound].uid  = statinfo->st_uid;
+	    objectinfotable[numobjsfound].time_s = objecttime_s;
+	    objectinfotable[numobjsfound].time_ns = objecttime_ns;
+	    numobjsfound++;
 	}
-    } else if (otherobjectflag) {		/* process "other" object types */
-	process_object(pathname);
     }
 }
 
 
 /*******************************************************************************
-Process a directory. Open it, read all it's entries (objects) and call
-process_path for each one (EXCEPT '.' and '..') and close it.
+ * Open a directory, loop through its children (except "." and "..") and
+ * call process_target_path for each, and close the directory.
 *******************************************************************************/
-void process_directory(char *pathname, int recursiondepth) {
+void process_target_directory(char *pathname, int recursiondepth) {
     DIR			*dirptr;
     struct dirent	*direntptr;
     char		newpathname[MAXPATHLENGTH], pathdelimiterstr[2];
@@ -560,7 +471,7 @@ void process_directory(char *pathname, int recursiondepth) {
     while ((direntptr=readdir(dirptr)) != (struct dirent *)NULL) {
 	if (strcmp(direntptr->d_name, ".") && strcmp(direntptr->d_name, "..")) {
 	    sprintf(newpathname, "%s%s%s", pathname, pathdelimiterstr, direntptr->d_name);
-	    process_path(newpathname, recursiondepth+1);
+	    process_target_path(newpathname, recursiondepth+1, 0);
 	}
     }
 
@@ -572,8 +483,106 @@ void process_directory(char *pathname, int recursiondepth) {
 
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by time (with qsort). The sort
-order is: seconds, then nanoseconds, then filename.
+ * If we can access where this pathname points and it points to a directory, return 1.
+ * Otherwise, return 0;
+*******************************************************************************/
+int symlink_to_a_directory(char *pathname) {
+    struct stat		statinfo;
+
+    if (stat(pathname, &statinfo) != -1) {
+	return S_ISDIR(statinfo.st_mode);
+    }
+    return 0;
+}
+
+
+/*******************************************************************************
+ * Process a target pathname.
+ * If it's a regular file, call process_target_object
+ * If it's a directory or a symlink to a directory - see below
+ * If it's some other file system object type, call process_target_object
+*******************************************************************************/
+void process_target_path(char *pathname, int recursiondepth, int trailingslashflag) {
+    struct stat	statinfo;
+
+    if (lstat(pathname, &statinfo) == -1) {
+	fprintf(stderr, "W: process_target_path: Cannot access '%s'\n", pathname);
+	returncode = 1;
+	return;
+    }
+
+    if (S_ISREG(statinfo.st_mode) && showregularfilesflag) {
+	process_target_object(pathname, &statinfo);
+	return;
+    }
+
+    /*
+     * If this target object is a directory, or
+     * If it's a symlink and it points to a directory and
+     *    either findfiles has been called with -L/--symlinks and/or this is a CL symlink with a trailing '/'
+     */
+    if (S_ISDIR(statinfo.st_mode) || (
+	    (S_ISLNK(statinfo.st_mode) && symlink_to_a_directory(pathname)) && (followsymlinksflag || trailingslashflag))) {
+
+	if (S_ISDIR(statinfo.st_mode) && showdirectoriesflag) {
+	    process_target_object(pathname, &statinfo);
+	}
+	/* Note: if this target object is a smylink, process_target_object is called below */
+
+	/* Is this a command line argument (directory or symlink/) and maxrecursiondepth > 0 */
+	if (recursiondepth == 0 && maxrecursiondepth > 0) {
+	    process_target_directory(pathname, recursiondepth);
+	} else if (recursiveflag) {
+	    if (recursiondepth < maxrecursiondepth && recursiondepth < filedescriptorsavailable) {
+		process_target_directory(pathname, recursiondepth);
+	    } else {
+		fprintf(stderr, "W: Cannot traverse directory '%s' (depth %d)\n", pathname, recursiondepth);
+		if (recursiondepth >= maxrecursiondepth) {
+		    fprintf(stderr, "W: Maximum tree traversal depth is %d\n", maxrecursiondepth);
+		}
+		if (recursiondepth >= filedescriptorsavailable) {
+		    fprintf(stderr, "W: (soft) file descriptor limit is %d\n", filedescriptorsavailable);
+		}
+	    }
+	}
+    }
+
+    if (!S_ISREG(statinfo.st_mode) && !S_ISDIR(statinfo.st_mode) && showotherobjectsflag) {
+	process_target_object(pathname, &statinfo);
+	return;
+    }
+}
+
+
+/*******************************************************************************
+ * Process a command line target pathname. If pathname is not "/", remove all trailing '/'
+ * character(s) from it. If any '/' characters are removed, set a flag so this can
+ * information can be used by process_target_path (if required).
+*******************************************************************************/
+void process_CL_target_path(char *pathname) {
+    char	*chptr;
+    int		trailingslashflag = 0;
+
+    if (!showregularfilesflag && !showdirectoriesflag && !showotherobjectsflag) {
+	fprintf(stderr, "W: Please choose at least one object type (-f, -d or -o) for '%s'!\n", pathname);
+	returncode = 1;
+	return;
+    }
+
+    /* If pathname is not "/", remove all trailing '/' character(s) from pathname */
+    chptr = pathname + strlen(pathname) -1;
+    while (*chptr == '/' && chptr > pathname) {
+	trailingslashflag = 1;
+	*chptr-- = '\0';
+    }
+
+    process_target_path(pathname, 0, trailingslashflag);	/* process this target pathname */
+}
+
+
+/*******************************************************************************
+ * Comparison function for sorting objectinfotable by time (with qsort). The sort
+ * order is: seconds, then nanoseconds, then filename.
 *******************************************************************************/
 int compare_object_time_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
@@ -594,8 +603,8 @@ int compare_object_time_info(const void *firstptr, const void *secondptr) {
 }
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by size (with qsort). The sort
-order is: size, then filename.
+ * Comparison function for sorting objectinfotable by size (with qsort). The sort
+ * order is: size, then filename.
 *******************************************************************************/
 int compare_object_size_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
@@ -613,7 +622,7 @@ int compare_object_size_info(const void *firstptr, const void *secondptr) {
 
 
 /*******************************************************************************
-Comparison function for sorting objectinfotable by object name (with qsort).
+ * Comparison function for sorting objectinfotable by object name (with qsort).
 *******************************************************************************/
 int compare_object_name_info(const void *firstptr, const void *secondptr) {
     const Objectinfo	*firstobjinfoptr = firstptr;	/* to keep gcc happy */
@@ -624,10 +633,10 @@ int compare_object_name_info(const void *firstptr, const void *secondptr) {
 
 
 /*******************************************************************************
-Sort objectinfotable by time, and display the object's information - optionally,
-the timestamp and age, and (always) the name.  Due to storing times in two
-variables (*_s and *_ns), it is necessary to add 1s to the objectage_ns value and
-subtract 1s from the objectage_s value whenever starttime_ns < the_object's_age_in_ns.
+ * Sort objectinfotable by time, and display the object's information - optionally,
+ * the timestamp and age, and (always) the name.  Due to storing times in two
+ * variables (*_s and *_ns), it is necessary to add 1s to the objectage_ns value and
+ * subtract 1s from the objectage_s value whenever starttime_ns < the_object's_age_in_ns.
 *******************************************************************************/
 void list_objects() {
     struct tm	*localtimeinfoptr;
@@ -731,9 +740,9 @@ void list_objects() {
 
 
 /*******************************************************************************
-Integer values must be used with units 'M' (months) and 'Y' (years) because
-months and years vary in size. E.g., '0.5M' does NOT always equate to the same
-amount of time, but 1.33s, 0.25h, 0.5m, 0.1W, etc., all do.
+ * Integer values must be used with units 'M' (months) and 'Y' (years) because
+ * months and years vary in size. E.g., '0.5M' does NOT always equate to the same
+ * amount of time, but 1.33s, 0.25h, 0.5m, 0.1W, etc., all do.
 *******************************************************************************/
 void check_integer(char *relativeagestr) {
     char	*chptr;
@@ -748,8 +757,8 @@ void check_integer(char *relativeagestr) {
 
 
 /*******************************************************************************
-Convert a (hopefully numeric) string to the equivalent number of nanoseconds (ns).
-Eg "123" to 123000000, "000123" to 123000 and "000000123" to 123.
+ * Convert a (hopefully numeric) string to the equivalent number of nanoseconds (ns).
+ * Eg "123" to 123000000, "000123" to 123000 and "000000123" to 123.
 *******************************************************************************/
 int convert_string_to_ns(char *fractionstr) {
     char	nanosecondsstr[] = NANOSECONDSSTR;
@@ -769,10 +778,10 @@ int convert_string_to_ns(char *fractionstr) {
 
 
 /*******************************************************************************
-Adjust the relative age of targettime when called with units of seconds. The
-reason for not using adjust_relative_age (below) is because when that function
-is called with a large integer (s), the fraction (ns) is sometimes rounded.
-See below. This function returns the correct number of nanoseconds.
+ * Adjust the relative age of targettime when called with units of seconds. The
+ * reason for not using adjust_relative_age (below) is because when that function
+ * is called with a large integer (s), the fraction (ns) is sometimes rounded.
+ * See below. This function returns the correct number of nanoseconds.
 *******************************************************************************/
 time_t adjust_relative_age_seconds(const char *relativeagestr, int *timeunitptr) {
     char	*decimalseparatorcharptr, trimmedrelativeagestr[sizeof(NANOSECONDSSTR)-1] = { '\0' };
@@ -794,10 +803,10 @@ time_t adjust_relative_age_seconds(const char *relativeagestr, int *timeunitptr)
 
 
 /*******************************************************************************
-Adjust the relative age of targettime. Parse the relativeagestr argument (a
-string representing floating point number) into integer and (optional) fraction
-parts. Update the breakdown time structure (timeinfoptr, see below) by the
-calculated integer number of seconds, and return the calculated number of ns.
+ * Adjust the relative age of targettime. Parse the relativeagestr argument (a
+ * string representing floating point number) into integer and (optional) fraction
+ * parts. Update the breakdown time structure (timeinfoptr, see below) by the
+ * calculated integer number of seconds, and return the calculated number of ns.
 *******************************************************************************/
 time_t adjust_relative_age(const char *relativeagestr, int *timeunitptr, long secsperunit) {
     double	relativeage_s, relativeage_ns;
@@ -810,8 +819,8 @@ time_t adjust_relative_age(const char *relativeagestr, int *timeunitptr, long se
 
 
 /*******************************************************************************
-Set the targettime (_s and _ns) relative to the start time. For example, -m 2D
-for 2 days ago or -a -10m for 10 minutes ago.
+ * Set the targettime (_s and _ns) relative to the start time. For example, -m 2D
+ * for 2 days ago or -a -10m for 10 minutes ago.
 *******************************************************************************/
 void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char timeunitchar) {
     time_t	relativeage_ns = DEFAULTAGE;
@@ -863,9 +872,10 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 	exit(1);
     }
 
-    /* Due to storing times in two variables (_s and _ns), it is necessary to add 1s to
-	the targettime_ns value and subtract 1s from the targettime_s value whenever
-	starttime_ns < relativeage_ns. */
+    /*
+     * Due to storing times in two variables (_s and _ns), it is necessary to add 1s to the targettime_ns
+     * value and subtract 1s from the targettime_s value whenever starttime_ns < relativeage_ns.
+     */
     if (starttime_ns >= relativeage_ns) {
 	targettime_ns = starttime_ns - relativeage_ns;
     } else {
@@ -876,7 +886,7 @@ void set_relative_targettime(char *timeinfostr, struct tm *timeinfoptr, char tim
 
 
 /*******************************************************************************
-Convert a time in seconds to a locale-specific (language, TZ) date string.
+ * Convert a time in seconds to a locale-specific (language, TZ) date string.
 *******************************************************************************/
 void convert_time_s_to_date_string(time_t time_s, char *datestr) {
     struct tm	timeinfo;
@@ -887,7 +897,7 @@ void convert_time_s_to_date_string(time_t time_s, char *datestr) {
 
 
 /*******************************************************************************
-Display the starttime in s.ns in a more easily readable format.
+ * Display the starttime in s.ns in a more easily readable format.
 *******************************************************************************/
 void list_starttime() {
     char	datestr[MAXDATESTRLENGTH];
@@ -899,17 +909,19 @@ void list_starttime() {
 
 
 /*******************************************************************************
-Convert a text input string (representing a timestamp) into a time since the
-Epoch (s in *time_s_ptr and ns in *time_ns_ptr).
+ * Convert a text input string (representing a timestamp) into a time since the
+ * Epoch (s in *time_s_ptr and ns in *time_ns_ptr).
 *******************************************************************************/
 void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm *timeinfoptr, time_t *time_s_ptr, time_t *time_ns_ptr) {
     size_t	timestampformatstrlen;
     char	*decimalseparatorcharptr;
 
     *time_ns_ptr = DEFAULTAGE;		/* set to zero unless a fraction of a second is specified */
-    /* convert the command line timeinfostr (eg, YYYYMMDD_HHMMSS) to a breakdown time structure (struct tm)
-    and return a pointer to anything after the allowed format (formatstr), if any (which should be a decimal
-    fraction of a second - eg, ".25" */
+    /*
+     * Convert the command line timeinfostr (eg, YYYYMMDD_HHMMSS) to a breakdown time structure (struct tm)
+     * and return a pointer to anything after the allowed format (formatstr), if any - which should be a decimal
+     * fraction of a second - eg, ".25".
+     */
     decimalseparatorcharptr = strptime(timeinfostr, formatstr, timeinfoptr);
 
     timeinfoptr->tm_isdst = -1; /* set is_dst to -1 so mktime will try to determine whether DST is in effect */
@@ -937,18 +949,18 @@ void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm
 
 
 /*******************************************************************************
-Set targettime from a command line argumet in one of two formats:
-1. When the last character of timeinfostr is one of Y, M, D, h, m or s: by
-   subtracting the relative) "age" command line argument, e.g., "15D" from
-   starttime. Note: targettime will always be less than starttime. I.e., "-30s"
-   and "[+]30s" both result in targettime = starttime-30s.
-2. When the last character of timeinfostr is a digit: by using timeinfostr
-   as a timestamp. timestampformatstr (default "%Y%m%d_%H%M%S", and configurable
-   with FF_TIMESTAMPFORMAT) is used to parse the value. So timestamps must be
-   entered in the format YYYYMMDD_HHMMSS[.secondfraction] unless the environment
-   variable FF_TIMESTAMPFORMAT is changed.
-In either case, a first character of '-' is used to set the newerthantargetflag.
-This function is called for both last access time and last modification time.
+ * Set targettime from a command line argumet in one of two formats:
+ * 1. When the last character of timeinfostr is one of Y, M, D, h, m or s: by
+ *    subtracting the relative) "age" command line argument, e.g., "15D" from
+ *    starttime. Note: targettime will always be less than starttime. I.e., "-30s"
+ *    and "[+]30s" both result in targettime = starttime-30s.
+ * 2. When the last character of timeinfostr is a digit: by using timeinfostr
+ *    as a timestamp. timestampformatstr (default "%Y%m%d_%H%M%S", and configurable
+ *    with FF_TIMESTAMPFORMAT) is used to parse the value. So timestamps must be
+ *    entered in the format YYYYMMDD_HHMMSS[.secondfraction] unless the environment
+ *    variable FF_TIMESTAMPFORMAT is changed.
+ * In either case, a first character of '-' is used to set the newerthantargetflag.
+ * This function is called for both last access time and last modification time.
 *******************************************************************************/
 void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
     char	timeunitchar;
@@ -965,15 +977,16 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
     timeunitchar = *(timeinfostr+strlen(timeinfostr+1));
     localtime_r(&starttime_s, &timeinfo);
 
-    /* is the last character of timeinfostr is a digit or a decimalseparatorchar? */
+    /* Is the last character of timeinfostr is a digit or a decimalseparatorchar? */
     if (isdigit(timeunitchar) || timeunitchar == decimalseparatorchar) {
 	/* Set the absolute time - for both (-m) modification and (-a) access - based on the
-	required format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
-	FF_TIMESTAMPFORMAT. It is possible to specify a subset of these. If not all of year to
-	second are specified, the values of the start time are used to fill the missing values.
-	For example, one could set FF_TIMESTAMPFORMAT to 'date:%m%d, hour:%H' and specify only
-	'date:', month, day, ', hour:', and hour, e.g., 'date:1231, hour:23' - or '%d%m%H' and
-	'311223'). See strptime for details. */
+	 * required format. The default is '%Y%m%d_%H%M%S', but this can be changed by by setting
+	 * FF_TIMESTAMPFORMAT. It is possible to specify a subset of these. If not all of year to
+	 * second are specified, the values of the start time are used to fill the missing values.
+	 * For example, one could set FF_TIMESTAMPFORMAT to 'date:%m%d, hour:%H' and specify only
+	 * 'date:', month, day, ', hour:', and hour, e.g., 'date:1231, hour:23' - or '%d%m%H' and
+	 * '311223'). See strptime for details.
+	 */
 	if (*timeinfostr == NEGATIVESIGNCHAR) {
 	    newerthantargetflag = 0;
 	    timeinfostr++;
@@ -1028,8 +1041,8 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
 
 
 /*******************************************************************************
-Set targettime to be the same as that of the reference object's last modification
-or last access time, as required.
+ * Set targettime to be the same as that of the reference object's last modification
+ * or last access time, as required.
 *******************************************************************************/
 void set_target_time_by_object_time(char *targetobjectstr, char cmdlineoptchar) {
     struct stat	statinfo;
@@ -1090,7 +1103,7 @@ void set_target_time_by_object_time(char *targetobjectstr, char cmdlineoptchar) 
 
 
 /*******************************************************************************
-Set the extended regular expression (pattern) to be used to match the object names.
+ * Set the extended regular expression (pattern) to be used to match the object names.
 *******************************************************************************/
 #define MAXREGCOMPERRMSGLEN	64
 void set_extended_regular_expression(char *erestr, int matchcode) {
@@ -1119,11 +1132,11 @@ void set_extended_regular_expression(char *erestr, int matchcode) {
 
 
 /*******************************************************************************
-Replace (overwrite!) a long format command line option (argv[c]) with its short
-format equivalent. E.g., replace '--files' with '-f' and '--pattern=foo' with
-'-pfoo'. Note: getopt_long doesn't process arguments in left-to-right order!
-Below, --longopt only requires enough of the first part (e.g., --long) to be
-unique (à la getopt_long).
+ * Replace (overwrite!) a long format command line option (argv[c]) with its short
+ * format equivalent. E.g., replace '--files' with '-f' and '--pattern=foo' with
+ * '-pfoo'. Note: getopt_long doesn't process arguments in left-to-right order!
+ * Below, --longopt only requires enough of the first part (e.g., --long) to be
+ * unique (à la getopt_long).
 *******************************************************************************/
 void command_line_long_to_short(char *longopt) {
     char	*equalptr;
@@ -1209,8 +1222,8 @@ void command_line_long_to_short(char *longopt) {
 
 
 /*******************************************************************************
-Set starttime_s and starttime_ns with the current system time. (Unless environment
-variable FF_STARTTIME is set, which is mainly useful for testing.)
+ * Set starttime_s and starttime_ns with the current system time. (Unless environment
+ * variable FF_STARTTIME is set, which is mainly useful for testing.)
 *******************************************************************************/
 void set_starttime() {
     struct timespec	currenttime;
@@ -1230,8 +1243,8 @@ void set_starttime() {
 
 
 /*******************************************************************************
-If any of the environment variables in envvartable have been set, overwrite the
-default values of the relevant (string) variable with the contents.
+ * If any of the environment variables in envvartable have been set, overwrite the
+ * default values of the relevant (string) variable with the contents.
 *******************************************************************************/
 void grab_environment_variables() {
     unsigned int	idx;
@@ -1251,9 +1264,9 @@ void grab_environment_variables() {
 
 
 /*******************************************************************************
-All of the values that can be configured with the FF_... environment variables
-can also be set on the command line. Command line values take precedence over
-environment variables (i.e., if they are set in both places).
+ * All of the values that can be configured with the FF_... environment variables
+ * can also be set on the command line. Command line values take precedence over
+ * environment variables (i.e., if they are set in both places).
 *******************************************************************************/
 void set_cmd_line_envvar(const char *inputstr) {
     struct tm		timeinfo;
@@ -1291,8 +1304,8 @@ void set_cmd_line_envvar(const char *inputstr) {
 
 
 /*******************************************************************************
-List all the variables that can be set (all the entries of envvartable) - and
-the value of each one. If that's not the default value, list that too.
+ * List all the variables that can be set (all the entries of envvartable) - and
+ * the value of each one. If that's not the default value, list that too.
 *******************************************************************************/
 #define MAXOUTPUTFMTMSGLEN	128
 void list_envvartable() {
@@ -1323,9 +1336,9 @@ void list_envvartable() {
 
 
 /*******************************************************************************
-Set seclectsizecontrol to choose:
-   < 0: select objects that are <  than the specified size
-  >= 0: select objects that are >= than the specified size
+* Set seclectsizecontrol to choose:
+*    < 0: select objects that are <  than the specified size
+*   >= 0: select objects that are >= than the specified size
 *******************************************************************************/
 void set_select_size(const char *optarg) {
     if (*optarg == NEGATIVESIGNCHAR) {
@@ -1339,23 +1352,23 @@ void set_select_size(const char *optarg) {
 
 
 /*******************************************************************************
-Set selectuid to:
-  the uid specified, eg, -U 1234, or
-  the uid of the user specified, eg, '-U root' to set 0
+* Set selectuid to:
+*   the uid specified, eg, -U 1234, or
+*   the uid of the user specified, eg, '-U root' to set 0
 *******************************************************************************/
 void set_select_user(char *optarg) {
     struct passwd	*passwordptr;
     char		*chptr;
     int			uid = SELECTALLUSERS, alldigitsflag = 1, userfoundflag = 0;
 
-    /* if a userID is specified with ONE leading '+' sign, allow it (skip it and proceed) */
+    /* If a userID is specified with ONE leading '+' sign, allow it (skip it and proceed) */
     if (*optarg == POSITIVESIGNCHAR) {
 	chptr = optarg+1;
     } else {
 	chptr = optarg;
     }
 
-    /* if the -U [+]userID is a string in the format of a positive integer (all digits) ... */
+    /* If the -U [+]userID is a string in the format of a positive integer (all digits) ... */
     while (*chptr != '\0') {
 	if (!isdigit(*chptr++)) {
 	    alldigitsflag = 0;
@@ -1397,10 +1410,10 @@ void set_select_user(char *optarg) {
 
 
 /*******************************************************************************
-Configure the locale. For each of these environment variables that are set AND valid, set
-the corresponding locale category in the order specified in localecategorytable. Setting
-LC_COLLATE and/or LC_NUMERIC values will overwrite those values if set by LANG.
-If LC_ALL is set, overwrite all the others.
+ * Configure the locale. For each of these environment variables that are set AND valid, set
+ * the corresponding locale category in the order specified in localecategorytable. Setting
+ * LC_COLLATE and/or LC_NUMERIC values will overwrite those values if set by LANG.
+ * If LC_ALL is set, overwrite all the others.
 *******************************************************************************/
 void configure_locale() {
     size_t		localeidx;
@@ -1439,7 +1452,7 @@ void configure_locale() {
 
 
 /*******************************************************************************
-Parse the command line arguments left to right, processing them in order. See the usage message.
+ * Parse the command line arguments left to right, processing them in order. See the usage message.
 *******************************************************************************/
 int main(int argc, char *argv[]) {
     extern char		*optarg;
@@ -1477,21 +1490,23 @@ int main(int argc, char *argv[]) {
     grab_environment_variables();
     set_starttime();
 
-    /* Both while loops and the if (below) are required because command line options
-    and arguments can be interspersed and are processed in (left-to-right) order */
+    /*
+     * Both while loops and the if (below) are required because command line options
+     * and arguments can be interspersed and are processed in (left-to-right) order.
+     */
     while (optind < argc) {
 	while ((optchar = getopt(argc, argv, GETOPTSTR)) != -1) {
 	    switch (optchar) {
-		case 'd': directoryflag		= !directoryflag;				break;
-		case 'f': regularfileflag	= !regularfileflag;				break;
-		case 'o': otherobjectflag	= !otherobjectflag;				break;
+		case 'd': showdirectoriesflag	= !showdirectoriesflag;				break;
+		case 'f': showregularfilesflag	= !showregularfilesflag;			break;
+		case 'o': showotherobjectsflag	= !showotherobjectsflag;			break;
 		case 'r': recursiveflag		= !recursiveflag;				break;
 		case 'i': ignorecaseflag	= !ignorecaseflag;				break;
 		case 'p': numeres = 0; set_extended_regular_expression(optarg, REG_MATCH); 	break;
 		case 'P': set_extended_regular_expression(optarg, REG_MATCH); 			break;
 		case 'x': numeres = 0; set_extended_regular_expression(optarg, REG_NOMATCH);	break;
 		case 'X': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
-		case 't': process_path(optarg, 0); numtargets++;				break;
+		case 't': process_CL_target_path(optarg); numtargets++;				break;
 		case 'D': maxrecursiondepth = abs(atoi(optarg));				break;
 		case 'V': set_cmd_line_envvar(optarg);						break;
 		case 'a': set_target_time_by_cmd_line_arg(optarg, optchar);			break;
@@ -1517,7 +1532,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (optind < argc) {	/* See above comment. Yes, this is required! */
-	    process_path(argv[optind], 0);
+	    process_CL_target_path(argv[optind]);
 	    numtargets++;
 	    optind++;
 	}
@@ -1536,8 +1551,8 @@ int main(int argc, char *argv[]) {
 	list_objects();
 	fflush(stdout);
     } else {
-	fprintf(stderr, "W: Please specify at least one target.\n");
-	returncode = 1;
+	fprintf(stderr, "E: Please specify at least one target.\n");
+	exit(1);
     }
 
     if (verbosity > 3) {
