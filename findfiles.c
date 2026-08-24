@@ -68,7 +68,7 @@
  * It is assumed that, in general, the cases of file system objects having future
  * last access and/or last modification times are both rare and uninteresting.
 *******************************************************************************/
-#define PROGRAMVERSIONSTRING	"3.7.5"
+#define PROGRAMVERSIONSTRING	"3.8.0"
 
 #define _GNU_SOURCE		/* required for strptime */
 
@@ -210,6 +210,14 @@ typedef struct {		/* preg: pre-compiled (extended) regular expression pattern bu
 Ereinfo	eretable[MAXNUMERES];
 int	numeres			= 0;
 
+typedef struct {
+    dev_t	device;
+    ino_t	inode;
+} Treetraversalcutpathdetails;
+
+Treetraversalcutpathdetails	**treetraversalcutpathtable	= NULL;
+int				numtreetraversalcutpaths	= 0;
+
 int	maxnumberobjects	= INITMAXNUMOBJS;
 int	numobjsfound		= 0;
 int	numtargets		= 0;
@@ -246,13 +254,13 @@ int compare_object_size_info(const void *, const void *);
 /* Set the default object comparison function to compare by (modification or access) time */
 int (*compare_object_function_ptr)(const void *, const void *) = &compare_object_time_info;
 
-#define GETOPTSTR		"+dforiLp:P:x:X:t:D:U:V:z:a:m:A:M:hHnsuNRSTv"
+#define GETOPTSTR		"+dforiLp:P:x:X:c:t:D:U:V:z:a:m:A:M:hHnsuNRSTv"
 /*******************************************************************************
  * Display the usage (help) message.
 *******************************************************************************/
-void display_usage_message(const char *progname) {
+void display_usage_message(const char *programname) {
     printf("usage (version %s):\n", PROGRAMVERSIONSTRING);
-    printf("%s [OPTION]... target|-t target... [OPTION]... [target|-t target]...\n", progname);
+    printf("%s [OPTION]... target|-t target... [OPTION]... [target|-t target]...\n", programname);
     printf(" Some OPTIONs require arguments - these are:\n");
     printf("  age    : a relative age value followed by a time unit (eg, '3D')\n");
     printf("  ERE    : a POSIX-style Extended Regular Expression (pattern)\n");
@@ -266,26 +274,27 @@ void display_usage_message(const char *progname) {
     printf("  -r|--recursive   : recursive - traverse file trees (default off)\n");
     printf("  -i|--ignore-case : case insensitive pattern match - use before -p|-P|-x|-X (default off)\n");
     printf("  -L|--symlinks    : follow symbolic Links (default off)\n");
-    printf(" OPTIONs requiring an argument (parsed left to right):\n");
+    printf(" OPTIONs requiring exactly one argument (parsed left to right):\n");
     printf("  -p|--pattern     ERE : (re)initialize name search to include objects matching this ERE\n");
     printf("  -P|--and-pattern ERE : extend name search to include objects also matching this ERE (logical and)\n");
     printf("  -x|--exclude     ERE : (re)initialize name search to exclude objects matching this ERE\n");
     printf("  -X|--and-exclude ERE : extend name search to exclude objects also matching this ERE (logical and)\n");
+    printf("  -c|--cut file_system_tree_path : stop below this path (cut this branch) when traversing a file system\n");
     printf("  -t|--target target_path        : target path (no default)\n");
     printf("  -D|--depth max_recursion_depth : max recursion traversal depth/level (default %d)\n", MAXRECURSIONDEPTH);
     printf("  -U|--user username|userID      : select objects owned by username|userID (eg, root or 0)\n");
     printf("  -V|--variable=value            : for <FF_variable>=<value>\n");
     printf("  -z|--size [-|+]object_size     : - to select objects sized <= object_size, [+] for >=\n");
-    printf("  Ages are relative to start time; '-3D' & '3D' both set target time to 3 days before start time\n");
+    printf("  Ages are relative to start time: '-3D' & '3D' both set target time to 3 days before start time\n");
     printf("   -a|--acc-info [-|+]access_age        : - for newer/=, [+] for older/= access ages (no default)\n");
     printf("   -m|--mod-info [-|+]modification_age  : - for newer/=, [+] for older/= mod ages (default 0s: any time)\n");
-    printf("  Times are absolute; eg, '-20251231_153000' & '20251231_153000' (using locale's timezone)\n");
+    printf("  Times are absolute (eg, '-20251231_153000' & '20251231_153000'); uses current locale's timezone\n");
     printf("   -a|--acc-info [-|+]access_time       : - for older/=, [+] for newer/= access times (no default)\n");
     printf("   -m|--mod-info [-|+]modification_time : - for older/=, [+] for newer/= mod times (no default)\n");
-    printf("  Reference times are absolute; eg: '-/tmp/f' & '/tmp/f'\n");
+    printf("  Reference times are absolute (eg, '-/tmp/f' & '/tmp/f')\n");
     printf("   -A|--acc-ref [-|+]acc_ref_path       : - for older, [+] for newer access times (no default)\n");
     printf("   -M|--mod-ref [-|+]mod_ref_path       : - for older, [+] for newer mod times (no default)\n");
-    printf(" Flags - are 'global' options (and can NOT be toggled by setting multiple times):\n");
+    printf(" Global FLAGs - if conflicting flags are used, the last specified takes precedence\n");
     printf("  -h|--human-1024   : display object sizes in 'human readable' form (eg, '1.00kiB')\n");
     printf("  -H|--human-1000   : display object sizes in 'human readable' form (eg, '1.02kB')\n");
     printf("  -n|--nanoseconds  : in verbose mode, display the maximum resolution of the OS/FS - up to ns\n");
@@ -357,6 +366,66 @@ void display_human_readable_size(size_t size) {
 
 
 /*******************************************************************************
+ * Add the details required to uniquely identify a path (currently device and
+ * inode values) to treetraversalcutpathtable. Extend this table for each new
+ * entry. The expectation is that there will be a very small number (most often
+ * 0, occasionally perhaps 1 or 2) of "-c <cut_path>" command line arguments,
+ * but there is no maximum number.
+*******************************************************************************/
+void add_tree_traversal_cut_path(char *pathname) {
+    struct stat	statinfo;
+
+    if (lstat(pathname, &statinfo) == -1) {
+	fprintf(stderr, "W: Cannot access '%s' in function '%s'\n", pathname, __func__);
+	returncode = 1;
+	return;
+    }
+
+    /* if this is the first entry, allocate space for it. If subsequent, copy the existing table with room for the new entry */
+    if ((treetraversalcutpathtable=realloc(treetraversalcutpathtable, (numtreetraversalcutpaths+1)*sizeof(Treetraversalcutpathdetails*))) == NULL) {
+	perror("E: Insufficient memory - realloc failed in function 'add_tree_traversal_cut_path'");
+	exit(1);
+    }
+
+    /* Allocate the memory to hold the new entry's cut path details */
+    if ((treetraversalcutpathtable[numtreetraversalcutpaths]=malloc(sizeof(Treetraversalcutpathdetails))) == NULL) {
+	perror("E: Insufficient memory - malloc failed in function 'add_tree_traversal_cut_path'");
+	exit(1);
+    }
+
+    /* realloc copies any old entries. Add the new entry's details at the end of the newly expanded table */
+    treetraversalcutpathtable[numtreetraversalcutpaths]->device = statinfo.st_dev;
+    treetraversalcutpathtable[numtreetraversalcutpaths]->inode = statinfo.st_ino;
+
+    if (verbosity > 2) {
+	fprintf(stderr, "i: Adding to the pathname(s) to be cut: '%s'\n", pathname);
+    }
+    numtreetraversalcutpaths++;
+}
+
+
+/*******************************************************************************
+ * Check this pathname's "unique file system identifiers" to determine if these
+ * details match any entry in treetraversalcutpathtable. If so, this path is to
+ * be "cut" (eliminated from the file system tree traversal), so return 1 -
+ * otherwise, this path should be traversed, so return 0.
+*******************************************************************************/
+int tree_traversal_cut_path(char *pathname, dev_t device, ino_t inode) {
+    int cutpathindex;
+
+    for (cutpathindex=0; cutpathindex<numtreetraversalcutpaths; cutpathindex++) {
+	if (inode == treetraversalcutpathtable[cutpathindex]->inode && device == treetraversalcutpathtable[cutpathindex]->device) {
+	    if (verbosity > 1) {
+		fprintf(stderr, "i: Not traversing the file system tree below '%s';\n", pathname);
+	    }
+	    return 1;
+	}
+    }
+    return 0;
+}
+
+
+/*******************************************************************************
  * Process a (file system) target object - eg, a regular file, directory, symbolic
  * link, fifo, special file, etc. If the object's attributes satisfy the command
  * line arguments (i.e., the name matches the 'pattern(s)' - actually, Extended
@@ -367,7 +436,6 @@ void display_human_readable_size(size_t size) {
 void process_target_object(char *pathname, struct stat *statinfo) {
     char	objectname[MAXPATHLENGTH], *charptr;
     time_t	objecttime_s, objecttime_ns;
-    Objectinfo	*oldobjectinfotable;
     int		idx, regexselectflag = 1;
 
     /* extract the object name after the last '/' char */
@@ -421,16 +489,14 @@ void process_target_object(char *pathname, struct stat *statinfo) {
 		} else {
 		    maxnumberobjects += MAXNUMOBJSINCVAL;
 		}
-		oldobjectinfotable = objectinfotable;
 		if ((objectinfotable=realloc(objectinfotable, maxnumberobjects*sizeof(Objectinfo))) == NULL) {
-		    perror("E: insufficient memory - realloc failed");
-		    free(oldobjectinfotable);		/* Only here to make Cppcheck happy */
+		    perror("E: Insufficient memory - realloc failed in function 'process_target_object'");
 		    exit(1);
 		}
 	    }
 
 	    if ((objectinfotable[numobjsfound].name=malloc(strlen(pathname)+1)) == NULL) {
-		perror("E: insufficient memory - malloc failed");
+		perror("E: Insufficient memory - malloc failed in function 'process_target_object'");
 		exit(1);
 	    }
 	    strcpy(objectinfotable[numobjsfound].name, pathname);
@@ -506,7 +572,7 @@ void process_target_path(char *pathname, int recursiondepth, int trailingslashfl
     struct stat	statinfo;
 
     if (lstat(pathname, &statinfo) == -1) {
-	fprintf(stderr, "W: process_target_path: Cannot access '%s'\n", pathname);
+	fprintf(stderr, "W: Cannot access '%s' in function '%s'\n", pathname, __func__);
 	returncode = 1;
 	return;
     }
@@ -531,17 +597,21 @@ void process_target_path(char *pathname, int recursiondepth, int trailingslashfl
 
 	/* Is this a command line argument (directory or symlink/) and maxrecursiondepth > 0 */
 	if (recursiondepth == 0 && maxrecursiondepth > 0) {
-	    process_target_directory(pathname, recursiondepth);
+	    if (numtreetraversalcutpaths == 0 || !tree_traversal_cut_path(pathname, statinfo.st_dev, statinfo.st_ino)) {
+		process_target_directory(pathname, recursiondepth);
+	    }
 	} else if (recursiveflag) {
 	    if (recursiondepth < maxrecursiondepth && recursiondepth < filedescriptorsavailable) {
-		process_target_directory(pathname, recursiondepth);
+		if (numtreetraversalcutpaths == 0 || !tree_traversal_cut_path(pathname, statinfo.st_dev, statinfo.st_ino)) {
+		    process_target_directory(pathname, recursiondepth);
+		}
 	    } else {
 		fprintf(stderr, "W: Cannot traverse directory '%s' (depth %d)\n", pathname, recursiondepth);
 		if (recursiondepth >= maxrecursiondepth) {
 		    fprintf(stderr, "W: Maximum tree traversal depth is %d\n", maxrecursiondepth);
 		}
 		if (recursiondepth >= filedescriptorsavailable) {
-		    fprintf(stderr, "W: (soft) file descriptor limit is %d\n", filedescriptorsavailable);
+		    fprintf(stderr, "W: (Soft) file descriptor limit is %d\n", filedescriptorsavailable);
 		}
 	    }
 	}
@@ -749,7 +819,7 @@ void check_integer(char *relativeagestr) {
 
     for (charptr=relativeagestr; charptr<relativeagestr+strlen(relativeagestr)-1; charptr++) {
 	if (!isdigit(*charptr) && *charptr != NEGATIVESIGNCHAR && *charptr != POSITIVESIGNCHAR) {
-	    fprintf(stderr, "E: non-integer character '%c' in '%s'!\n", *charptr, relativeagestr);
+	    fprintf(stderr, "E: Non-integer character '%c' in '%s'!\n", *charptr, relativeagestr);
 	    exit(-1);
 	}
     }
@@ -903,7 +973,7 @@ void list_starttime() {
     char	datestr[MAXDATESTRLENGTH];
 
     convert_time_s_to_date_string(starttime_s, datestr);
-    fprintf(stderr, "i: start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
+    fprintf(stderr, "i: Start time:  %15ld.%09lds ~= %s\n", starttime_s, starttime_ns, datestr);
     fflush(stderr);
 }
 
@@ -928,14 +998,14 @@ void convert_text_time_to_s_and_ns(char *timeinfostr, char *formatstr, struct tm
     *time_s_ptr = mktime(timeinfoptr);	/* convert the breakdowns time structure to the number of seconds */
 
     if (decimalseparatorcharptr == NULL) {
-	fprintf(stderr, "E: bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
+	fprintf(stderr, "E: Bad timestamp: '%s' must be in format '%s[.ns]'\n", timeinfostr, formatstr);
 	exit(1);
     } else if (*decimalseparatorcharptr == decimalseparatorchar) {	/* if a decimalseparatorchar follows a valid timestamp */
 	/* Ensure that the last characters of formatstr (eg, %Y%m%d_%H%M%S) are SECONDSFORMATSTR ("%S") */
 	timestampformatstrlen = strlen(formatstr);
 	if (timestampformatstrlen < sizeof(SECONDSFORMATSTR)-1 ||
 		strcmp(formatstr+timestampformatstrlen-(sizeof(SECONDSFORMATSTR)-1), SECONDSFORMATSTR)) {
-	    fprintf(stderr, "E: last two characters of '%s' must be '%s' when using fractions of seconds\n",
+	    fprintf(stderr, "E: Last two characters of '%s' must be '%s' when using fractions of seconds\n",
 		formatstr, SECONDSFORMATSTR);
 	    exit(1);
 	}
@@ -1029,7 +1099,7 @@ void set_target_time_by_cmd_line_arg(char *timeinfostr, char cmdlineoptchar) {
 	}
 
 	convert_time_s_to_date_string(targettime_s, datestr);
-	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
+	fprintf(stderr, "i: Target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
 	fprintf(stderr, "i: %13.5fD ~= %10ld.%09lds last %s %s target time ('%s')\n",
 	    (float)(starttime_s-targettime_s)/SECONDSPERDAY, relativeage_s,
 	    relativeage_ns, accesstimeflag ? "accessed" : "modified",
@@ -1071,15 +1141,15 @@ void set_target_time_by_object_time(char *targetobjectstr, char cmdlineoptchar) 
 	    targettime_ns = statinfo.st_atim.tv_nsec;
 	}
     } else {
-	fprintf(stderr, "E: Cannot access '%s'\n", targetobjectstr);
+	fprintf(stderr, "E: Cannot access '%s' in function '%s'\n", targetobjectstr, __func__);
 	exit(1);
     }
 
     if (verbosity > 1) {
-	fprintf(stderr, "i: last %s %s than '%s'\n", accesstimeflag ? "accessed" : "modified",
+	fprintf(stderr, "i: Last %s %s than '%s'\n", accesstimeflag ? "accessed" : "modified",
 	    newerthantargetflag ? "after (newer than)" : "before (older than)", targetobjectstr);
 	convert_time_s_to_date_string(targettime_s, datestr);
-	fprintf(stderr, "i: target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
+	fprintf(stderr, "i: Target time: %15ld.%09lds ~= %s\n", targettime_s, targettime_ns, datestr);
 	list_starttime();
 	fflush(stderr);
     }
@@ -1147,12 +1217,13 @@ void command_line_long_to_short(char *longopt) {
     typedef struct {
 	char	*shortform;
 	char	*longform;
-	int	minuniqlen;
+	int	minuniqelen;
     } Optiontype;
 
     Optiontype optiontable[] = {
 	{ "-a", "--acc-info"	, 7 },
 	{ "-A", "--acc-ref"	, 7 },
+	{ "-c", "--cut"		, 3 },
 	{ "-P", "--and-pattern" , 7 },
 	{ "-X", "--and-exclude"	, 7 },
 	{ "-D", "--depth"	, 4 },
@@ -1184,7 +1255,7 @@ void command_line_long_to_short(char *longopt) {
 
     for (optiontableidx=0; optiontableidx<sizeof(optiontable)/sizeof(Optiontype); optiontableidx++) {
 	/* if '--longopt' with or without something following (eg, '--longopt=<param>' */
-	if (!strncmp(longopt, optiontable[optiontableidx].longform, optiontable[optiontableidx].minuniqlen)) {
+	if (!strncmp(longopt, optiontable[optiontableidx].longform, optiontable[optiontableidx].minuniqelen)) {
 
 	    /* check for invalid characters in (possibly less than the full) --longopt */
 	    optiontablecharptr = optiontable[optiontableidx].longform;
@@ -1215,7 +1286,7 @@ void command_line_long_to_short(char *longopt) {
 
     /* if '--bogus_option' or '--valid_option=' was found */
     if (!optionfoundflag) {
-	fprintf(stderr, "E: Illegal command line option '%s', aborting\n", longopt);
+	fprintf(stderr, "E: Invalid long command line option '%s', aborting\n", longopt);
 	exit(1);
     }
 }
@@ -1236,7 +1307,7 @@ void set_starttime() {
 	starttime_ns = currenttime.tv_nsec;
     } else {		/* this is used for testing */
 	convert_text_time_to_s_and_ns(starttimestr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
-	fprintf(stderr, "i: set starttime to '%s' with environment variable %s\n", starttimestr, FF_STARTTIMESTR);
+	fprintf(stderr, "i: Set starttime to '%s' with environment variable %s\n", starttimestr, FF_STARTTIMESTR);
 	list_starttime();
     }
 }
@@ -1280,7 +1351,7 @@ void set_cmd_line_envvar(const char *inputstr) {
 	    if (!strcmp(inputstr, envvartable[idx].name)) {
 		if (!strcmp(inputstr, FF_STARTTIMESTR)) {	/* set the start time - special case */
 		    convert_text_time_to_s_and_ns(charptr, DEFAULTTIMESTAMPFMT, &timeinfo, &starttime_s, &starttime_ns);
-		    fprintf(stderr, "i: set starttime to '%s' with command line variable %s\n", charptr, FF_STARTTIMESTR);
+		    fprintf(stderr, "i: Set starttime to '%s' with command line variable %s\n", charptr, FF_STARTTIMESTR);
 		    if (targettime_s != DEFAULTAGE || targettime_ns != DEFAULTAGE) {
 			fprintf(stderr, "W: Attention: %s has been overwritten with a new value!\n", FF_STARTTIMESTR);
 		    }
@@ -1398,7 +1469,7 @@ void set_select_user(char *optarg) {
 	    fprintf(stderr, "W: userID '%s' does not exist on this system.\n", optarg);
 	    selectuid = uid;
 	} else {
-	    fprintf(stderr, "W: user '%s' does not exist on this system. No objects will be displayed for this user.\n", optarg);
+	    fprintf(stderr, "W: User '%s' does not exist on this system. No objects will be displayed for this user.\n", optarg);
 	    selectuid = REJECTALLUSERS;
 	}
     }
@@ -1481,7 +1552,7 @@ int main(int argc, char *argv[]) {
 
     /* Get the file descriptor soft limit */
     if (getrlimit(RLIMIT_NOFILE, &filelimits) == -1) {
-        perror("E: could not get file descriptor limits");
+        perror("E: Could not get file descriptor limits");
 	exit(1);
     } else {
 	filedescriptorsavailable = filelimits.rlim_cur - 3; /* 3: one each for stdin stdout & stderr */
@@ -1494,6 +1565,7 @@ int main(int argc, char *argv[]) {
      * Both while loops and the if (below) are required because command line options
      * and arguments can be interspersed and are processed in (left-to-right) order.
      */
+    opterr = 0;			/* diable defautl getopt error */
     while (optind < argc) {
 	while ((optchar = getopt(argc, argv, GETOPTSTR)) != -1) {
 	    switch (optchar) {
@@ -1506,6 +1578,7 @@ int main(int argc, char *argv[]) {
 		case 'P': set_extended_regular_expression(optarg, REG_MATCH); 			break;
 		case 'x': numeres = 0; set_extended_regular_expression(optarg, REG_NOMATCH);	break;
 		case 'X': set_extended_regular_expression(optarg, REG_NOMATCH);			break;
+		case 'c': add_tree_traversal_cut_path(optarg);					break;
 		case 't': process_CL_target_path(optarg); numtargets++;				break;
 		case 'D': maxrecursiondepth = abs(atoi(optarg));				break;
 		case 'V': set_cmd_line_envvar(optarg);						break;
@@ -1528,6 +1601,8 @@ int main(int argc, char *argv[]) {
 		case 'T': displaytypesflag = 1;							break;
 		case 'R': sortmultiplier = -1;							break;
 		case 'v': verbosity++;								break;
+		case '?': fprintf(stderr, "E: Invalid short command line option '-%c', aborting\n", optopt); exit(1);
+												break;
 	    }
 	}
 

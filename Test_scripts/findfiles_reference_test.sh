@@ -274,6 +274,7 @@ echo ===========================================================================
 ################################################################################
 # Create some directories, symbolic links and files for the tests below.
 ################################################################################
+DIRTIME=202001010000.00
 rm -rf $TESTBASEDIR/*
 DIRL1=DirL1
 mkdir ${DIRL1}
@@ -288,6 +289,8 @@ ln -s ${DIRL2} ${DIRL1}/${DIRL2}_symlink
 TESTDIR=${DIRL1}/${DIRL2}
 create_ts_files_YMDHMSns 2021 2021 1   6 6 1   15 16 1 \
     0 0 1   0 0 1   0 0 1   0 0 1000000000
+
+touch -t ${DIRTIME} ${DIRL1} ${DIRL1}/${DIRL2}
 
 
 echo ======================================================================================================
@@ -306,6 +309,9 @@ echo ===========================================================================
 	"$FF -V FF_STARTTIME=$STARTTIME -vfr -L ${DIRL1}_symlink" \
 	"$FF -V FF_STARTTIME=$STARTTIME -vfr    ${DIRL1} ${DIRL1}_symlink" \
 	"$FF -V FF_STARTTIME=$STARTTIME -vfr -L ${DIRL1} ${DIRL1}_symlink" \
+	\
+	"$FF -V FF_STARTTIME=$STARTTIME -vvfdrTN                      ${DIRL1}" \
+	"$FF -V FF_STARTTIME=$STARTTIME -vvfdrTN -c ${DIRL1}/${DIRL2} ${DIRL1}" \
 
     do
 	echo "========== [$CMD] =========="

@@ -90,17 +90,20 @@ function compare {
 
     # handle all 4 cases of stdouts and stderr matching or not
     if [ $STDOUTDIFFRETVAL -eq 0 ]; then	# do the stdouts match?
-	if [ $STDERRDIFFRETVAL -eq 0 ]; then	# the stdouts match, do two stderrs match too?
+	if [ $STDERRDIFFRETVAL -eq 0 ]; then	# the stdouts match, do the stderrs match too?
 	    printf "[SAME] %5d/%5d stdout/stderr identilcal lines: %-40s\n" $STDOUTNUMLNS1 $STDERRNUMLNS1 "[$ENVVARS][$ARGS]"
 	else					# stdouts match, stderrs differ - display those details
 	    DIFFCOUNT=$((DIFFCOUNT+1))
+	    echo
 	    echo "============================== stderr is different ================================= $DIFFCOUNT"
 	    printf "[DIFFERENT] %5d != %5d stderr lines: %-40s\n" $STDERRNUMLNS1 $STDERRNUMLNS2 "[$ENVVARS][$ARGS]"
 	    echo "------------------- stderr diffs ---------------------"
 	    cat $STDERRDIFFS
+	    echo
 	fi
     else
 	DIFFCOUNT=$((DIFFCOUNT+1))		# the stdouts differ, display those details
+	echo
 	echo "============================== stdout is different ================================= $DIFFCOUNT"
 	printf "[DIFFERENT] %5d != %5d stdout lines: %-40s\n" $STDOUTNUMLNS1 $STDOUTNUMLNS2 "[$ENVVARS][$ARGS]"
 	echo "------------------- stdout diffs ---------------------"
@@ -109,6 +112,7 @@ function compare {
 	    echo "------------------- stderr diffs ---------------------"
 	    cat $STDERRDIFFS
 	fi
+	echo
     fi
 }
 
@@ -202,6 +206,8 @@ for ARGS in \
     "-vf -U root /etc" \
     "-vf -U GlUrBuSeR /etc" \
 \
+    "-vdfrN -p e -c /etc/X11 /etc" \
+\
     "-fv -m -$PASTTIMESTAMP /etc" \
     "-fv -m  $PASTTIMESTAMP /etc" \
     "-fv -m +$PASTTIMESTAMP /etc" \
@@ -283,9 +289,11 @@ for ARGS in \
     "--verbose --files --user root /etc" \
     "--verbose --files --user GlUrBuSeR /etc" \
 \
-    "--verbose --files --mod-age -$PASTTIMESTAMP /etc" \
-    "--verbose --files --mod-age  $PASTTIMESTAMP /etc" \
-    "--verbose --files --mod-age +$PASTTIMESTAMP /etc" \
+    "--verbose --directories --files --recursive --sort-by-name --pattern e --cut /etc/X11 /etc" \
+\
+    "--verbose --files --mod-info -$PASTTIMESTAMP /etc" \
+    "--verbose --files --mod-info  $PASTTIMESTAMP /etc" \
+    "--verbose --files --mod-info +$PASTTIMESTAMP /etc" \
 
 do
     compare

@@ -1,4 +1,25 @@
 =============================================================================================
+v3.8.0 Mon Aug 24 12:46:37 AEST 2026
+
+1. Added "-c/--cut <path>" option to cut/bypass/skip a pathname on a tree traversal.
+
+2  Tweaked the usage message ("standardized" it) - cosmetic.
+
+3  Tweaked the E: W: and i: messages ("standardized" them) - cosmetic.
+
+4. Removed free oldobjectinfotable (etc.) that was only present to prevent an old compiler
+   warning.
+
+5. Before, using an illegal short option caused a warning, but an illegal long option aborted.
+   Now they both abort with a sensible error message.
+
+6. Other cosmetic changes.
+
+7. Updated findfiles_regression_test.sh with tests for -c/--cut <path>.
+
+8. Updated findfiles_reference_test_output and findfiles_reference_test.sh for the above.
+
+=============================================================================================
 v3.7.5 Thu Aug  6 08:39:56 AEST 2026
 
 1. Changed *chptr to *charptr (eg "chptr -> charptr and tochptr -> tocharptr).
